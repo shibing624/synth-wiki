@@ -1,7 +1,20 @@
 [**🌐English**](README.md) | **🇨🇳中文**
 
+<div align="center">
+  <a href="https://github.com/shibing624/synth-wiki">
+    <img src="https://raw.githubusercontent.com/shibing624/synth-wiki/main/docs/logo.svg" height="150" alt="Logo">
+  </a>
+</div>
+
+-----------------
+
 # synth-wiki
 [![PyPI version](https://badge.fury.io/py/synth-wiki.svg)](https://badge.fury.io/py/synth-wiki)
+[![Downloads](https://static.pepy.tech/badge/synth-wiki)](https://pepy.tech/project/synth-wiki)
+[![License Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+[![python_version](https://img.shields.io/badge/Python-3.12%2B-green.svg)](pyproject.toml)
+[![GitHub issues](https://img.shields.io/github/issues/shibing624/synth-wiki.svg)](https://github.com/shibing624/synth-wiki/issues)
+[![Wechat Group](https://img.shields.io/badge/wechat-group-green.svg?logo=wechat)](#社区与支持)
 
 基于 [Andrej Karpathy 的想法](https://x.com/karpathy/status/2039805659525644595) 实现的 LLM 编译型个人知识库。使用 Python 编写。
 
@@ -187,10 +200,34 @@ URL 导入会：
 
 导入的来源经过 4 步编译处理：
 
-1. **Diff** — 对比 manifest 和实际文件，找出新增/修改/删除的来源
-2. **Summarize** — LLM 生成每个来源的摘要
-3. **Extract Concepts** — LLM 从摘要中提取概念、别名、类型
-4. **Write Articles** — LLM 为每个概念撰写百科文章，自动创建 wikilinks 和 ontology 关系
+```
+源文件 (MD/PDF/DOCX/JSON/Code/TXT/Image)
+        │
+        ▼
+  ┌───────────────┐
+  │  1. Diff      │  对比 manifest，检测 新增/修改/删除
+  └──────┬────────┘
+         │  变更列表
+         ▼
+  ┌───────────────┐
+  │  2. Summarize │  LLM 并发生成每个来源的摘要
+  └──────┬────────┘
+         │  摘要列表
+         ▼
+  ┌───────────────┐
+  │  3. Extract   │  LLM 从摘要中批量提取概念、别名、类型
+  │   Concepts    │
+  └──────┬────────┘
+         │  概念列表
+         ▼
+  ┌───────────────┐
+  │  4. Write     │  LLM 为每个概念撰写百科文章
+  │   Articles    │  自动创建 [[wikilinks]] 和 ontology 关系
+  └──────┬────────┘
+         │
+         ▼
+  结构化 Wiki（摘要 + 概念文章 + 知识图谱）
+```
 
 编译支持断点续传：如果中途失败，下次编译会从上次的检查点继续。使用 `--fresh` 忽略检查点重新开始。
 
@@ -368,7 +405,7 @@ embed:
 
 # 编译器配置
 compiler:
-  max_parallel: 4                  # 并行写文章数
+  max_parallel: 4                  # 每阶段最大 LLM 并发数
   debounce_seconds: 2
   summary_max_tokens: 2000         # 摘要最大 token
   article_max_tokens: 4000         # 文章最大 token
@@ -588,6 +625,31 @@ store.relation_count()         # 总关系数
 
 - [xoai/sage-wiki](https://github.com/xoai/sage-wiki) — Go 语言版本的 llm-wiki
 - [Andrej Karpathy 的 llm-wiki 想法](https://x.com/karpathy/status/2039805659525644595) — 项目灵感来源
+
+## 社区与支持
+
+- **GitHub Issues** — [提交 issue](https://github.com/shibing624/synth-wiki/issues)
+- **微信群** — 添加微信号 `xuming624`，备注 "nlp"，加入技术交流群
+
+<img src="https://github.com/shibing624/TreeSearch/blob/main/docs/wechat.jpeg" width="200" />
+
+## 引用
+
+如果您在研究中使用了 synth-wiki，请引用：
+
+```bibtex
+@software{xu2026synthwiki,
+  author = {Xu, Ming},
+  title = {synth-wiki: LLM-Compiled Personal Knowledge Base},
+  year = {2026},
+  publisher = {GitHub},
+  url = {https://github.com/shibing624/synth-wiki}
+}
+```
+
+## 贡献
+
+欢迎贡献！请提交 [Pull Request](https://github.com/shibing624/synth-wiki/pulls)。
 
 ## 许可证
 

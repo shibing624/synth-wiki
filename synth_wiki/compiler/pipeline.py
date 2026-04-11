@@ -178,7 +178,7 @@ def compile(project_name: str, opts: CompileOpts = None) -> CompileResult:
         if successful:
             extract_model = cfg.models.extract or model
             client.set_pass("extract")
-            concepts = extract_concepts(successful, mf.concepts, client, extract_model, cfg.language)
+            concepts = extract_concepts(successful, mf.concepts, client, extract_model, cfg.language, cfg.compiler.max_parallel)
             result.concepts_extracted = len(concepts)
 
             for c in concepts:

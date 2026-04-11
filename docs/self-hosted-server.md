@@ -115,7 +115,7 @@ embed:
 
 # 编译器配置
 compiler:
-  max_parallel: 4                  # 并行写文章数
+  max_parallel: 4                  # 每阶段最大 LLM 并发数
   debounce_seconds: 2
   summary_max_tokens: 2000         # 摘要最大 token
   article_max_tokens: 4000         # 文章最大 token

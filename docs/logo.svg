@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <defs>
+    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6366f1"/>
+      <stop offset="100%" stop-color="#8b5cf6"/>
+    </linearGradient>
+  </defs>
+  <!-- Book shape -->
+  <path d="M50 45 Q100 35 150 45 L150 145 Q100 135 50 145 Z" fill="url(#g)" opacity="0.9"/>
+  <line x1="100" y1="38" x2="100" y2="142" stroke="#fff" stroke-width="1.5" opacity="0.5"/>
+  <!-- Knowledge nodes -->
+  <circle cx="80" cy="75" r="4" fill="#fff"/>
+  <circle cx="120" cy="85" r="4" fill="#fff"/>
+  <circle cx="95" cy="110" r="4" fill="#fff"/>
+  <!-- Connections -->
+  <line x1="80" y1="75" x2="120" y2="85" stroke="#fff" stroke-width="1" opacity="0.6"/>
+  <line x1="120" y1="85" x2="95" y2="110" stroke="#fff" stroke-width="1" opacity="0.6"/>
+  <line x1="95" y1="110" x2="80" y2="75" stroke="#fff" stroke-width="1" opacity="0.6"/>
+  <!-- Text -->
+  <text x="100" y="178" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="18" font-weight="600" fill="#4b5563" letter-spacing="1">synth-wiki</text>
+</svg>

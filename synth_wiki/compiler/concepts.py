@@ -5,6 +5,7 @@
 """
 from __future__ import annotations
 import json
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 
 from synth_wiki.compiler.progress import phase_bar
@@ -24,26 +25,46 @@ class ExtractedConcept:
 
 def extract_concepts(summaries: list[SummaryResult], existing_concepts: dict,
                      client: Client, model: str,
-                     language: str = "zh-CN") -> list[ExtractedConcept]:
+                     language: str = "zh-CN",
+                     max_parallel: int = 4) -> list[ExtractedConcept]:
     valid = [s for s in summaries if s.error is None and s.summary]
     if not valid:
         return []
 
     existing_list = list(existing_concepts.keys())
+    batches = [valid[i:i + CONCEPT_BATCH_SIZE] for i in range(0, len(valid), CONCEPT_BATCH_SIZE)]
+    bar = phase_bar("Pass 2: Extract concepts", len(batches), unit="batch")
+
+    results = [None] * len(batches)
+    with ThreadPoolExecutor(max_workers=max_parallel) as pool:
+        futures = {}
+        for idx, batch in enumerate(batches):
+            f = pool.submit(_extract_one_batch, batch, existing_list, client, model, language)
+            futures[f] = idx
+        for f in futures:
+            results[futures[f]] = f.result()
+            bar.update(1)
+    bar.close()
+
     all_concepts: list[ExtractedConcept] = []
-    num_batches = (len(valid) + CONCEPT_BATCH_SIZE - 1) // CONCEPT_BATCH_SIZE
-    bar = phase_bar("Pass 2: Extract concepts", num_batches, unit="batch")
+    for batch_concepts in results:
+        if batch_concepts:
+            all_concepts.extend(batch_concepts)
+    all_concepts = filter_noisy_concepts(all_concepts)
+    all_concepts = deduplicate_concepts(all_concepts)
+    return all_concepts
 
-    for i in range(0, len(valid), CONCEPT_BATCH_SIZE):
-        batch = valid[i:i + CONCEPT_BATCH_SIZE]
-        summary_texts = []
-        for s in batch:
-            text = s.summary[:1000] + "\n..." if len(s.summary) > 1000 else s.summary
-            summary_texts.append(f"### Source: {s.source_path}\n{text}")
 
-        dedup = list(existing_list) + [c.name for c in all_concepts]
-        prompt = f"""Extract concepts from these summaries.
-Existing concepts (avoid duplicates): {', '.join(dedup)}
+def _extract_one_batch(batch: list[SummaryResult], existing_list: list[str],
+                       client: Client, model: str,
+                       language: str) -> list[ExtractedConcept]:
+    summary_texts = []
+    for s in batch:
+        text = s.summary[:1000] + "\n..." if len(s.summary) > 1000 else s.summary
+        summary_texts.append(f"### Source: {s.source_path}\n{text}")
+
+    prompt = f"""Extract concepts from these summaries.
+Existing concepts (avoid duplicates): {', '.join(existing_list)}
 
 Summaries:
 {chr(10).join(summary_texts)}
@@ -51,22 +72,11 @@ Summaries:
 For each concept: name (lowercase-hyphenated), aliases (in {language}), sources (file paths), type (concept/technique/claim).
 Output ONLY a JSON array."""
 
-        try:
-            resp = client.chat_completion([
-                Message(role="system", content=f"You are a concept extraction system. Output valid JSON only. Concept names and aliases MUST be in {language}."),
-                Message(role="user", content=prompt),
-            ], CallOpts(model=model, max_tokens=8192))
-            concepts = parse_concepts_json(resp.content)
-            all_concepts.extend(concepts)
-        except Exception:
-            continue
-        finally:
-            bar.update(1)
-
-    bar.close()
-    all_concepts = filter_noisy_concepts(all_concepts)
-    all_concepts = deduplicate_concepts(all_concepts)
-    return all_concepts
+    resp = client.chat_completion([
+        Message(role="system", content=f"You are a concept extraction system. Output valid JSON only. Concept names and aliases MUST be in {language}."),
+        Message(role="user", content=prompt),
+    ], CallOpts(model=model, max_tokens=8192))
+    return parse_concepts_json(resp.content)
 
 
 def parse_concepts_json(text: str) -> list[ExtractedConcept]:

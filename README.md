@@ -1,7 +1,20 @@
 [**🇨🇳中文**](README_ZH.md) | **🌐English**
 
+<div align="center">
+  <a href="https://github.com/shibing624/synth-wiki">
+    <img src="https://raw.githubusercontent.com/shibing624/synth-wiki/main/docs/logo.svg" height="150" alt="Logo">
+  </a>
+</div>
+
+-----------------
+
 # synth-wiki
 [![PyPI version](https://badge.fury.io/py/synth-wiki.svg)](https://badge.fury.io/py/synth-wiki)
+[![Downloads](https://static.pepy.tech/badge/synth-wiki)](https://pepy.tech/project/synth-wiki)
+[![License Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+[![python_version](https://img.shields.io/badge/Python-3.12%2B-green.svg)](pyproject.toml)
+[![GitHub issues](https://img.shields.io/github/issues/shibing624/synth-wiki.svg)](https://github.com/shibing624/synth-wiki/issues)
+[![Wechat Group](https://img.shields.io/badge/wechat-group-green.svg?logo=wechat)](#community--support)
 
 An implementation of [Andrej Karpathy's idea](https://x.com/karpathy/status/2039805659525644595) for an LLM-compiled personal knowledge base. Written in Python.
 
@@ -187,10 +200,34 @@ URL ingestion will:
 
 Imported sources go through a 4-step compilation:
 
-1. **Diff** — Compare manifest against actual files, detect added/modified/deleted sources
-2. **Summarize** — LLM generates a summary for each source
-3. **Extract Concepts** — LLM extracts concepts, aliases, and types from summaries
-4. **Write Articles** — LLM writes wiki articles for each concept, auto-creating wikilinks and ontology relations
+```
+Source Files (MD/PDF/DOCX/JSON/Code/TXT/Image)
+        │
+        ▼
+  ┌───────────────┐
+  │  1. Diff      │  Compare manifest, detect added/modified/deleted
+  └──────┬────────┘
+         │  change list
+         ▼
+  ┌───────────────┐
+  │  2. Summarize │  LLM generates summaries concurrently
+  └──────┬────────┘
+         │  summaries
+         ▼
+  ┌───────────────┐
+  │  3. Extract   │  LLM batch-extracts concepts, aliases, types
+  │   Concepts    │
+  └──────┬────────┘
+         │  concepts
+         ▼
+  ┌───────────────┐
+  │  4. Write     │  LLM writes wiki articles per concept
+  │   Articles    │  auto-creates [[wikilinks]] and ontology relations
+  └──────┬────────┘
+         │
+         ▼
+  Structured Wiki (summaries + concept articles + knowledge graph)
+```
 
 Compilation supports checkpoint resume: if interrupted, the next compile picks up from the last checkpoint. Use `--fresh` to ignore checkpoints and restart.
 
@@ -374,7 +411,7 @@ embed:
 
 # Compiler config
 compiler:
-  max_parallel: 4                  # Parallel article writes
+  max_parallel: 4                  # Max concurrent LLM calls per phase
   debounce_seconds: 2
   summary_max_tokens: 2000
   article_max_tokens: 4000
@@ -594,6 +631,31 @@ store.relation_count()         # Total relations
 
 - [xoai/sage-wiki](https://github.com/xoai/sage-wiki) — Go implementation of llm-wiki
 - [Andrej Karpathy's llm-wiki idea](https://x.com/karpathy/status/2039805659525644595) — the original inspiration
+
+## Community & Support
+
+- **GitHub Issues** — [Open an issue](https://github.com/shibing624/synth-wiki/issues)
+- **WeChat Group** — Add WeChat `xuming624` with note "nlp" to join the tech discussion group
+
+<img src="https://github.com/shibing624/TreeSearch/blob/main/docs/wechat.jpeg" width="200" />
+
+## Citation
+
+If you use synth-wiki in your research, please cite:
+
+```bibtex
+@software{xu2026synthwiki,
+  author = {Xu, Ming},
+  title = {synth-wiki: LLM-Compiled Personal Knowledge Base},
+  year = {2026},
+  publisher = {GitHub},
+  url = {https://github.com/shibing624/synth-wiki}
+}
+```
+
+## Contributing
+
+Contributions are welcome! Please submit a [Pull Request](https://github.com/shibing624/synth-wiki/pulls).
 
 ## License
 

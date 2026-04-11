@@ -34,7 +34,7 @@ def summarize(output_dir: str, sources: list[SourceInfo],
     with ThreadPoolExecutor(max_workers=max_parallel) as pool:
         futures = {}
         for i, src in enumerate(sources):
-            f = pool.submit(summarize_one, output_dir, src, client, model, max_tokens, language)
+            f = pool.submit(summarize_one, output_dir, src, client, model, max_tokens, language, max_parallel)
             futures[f] = i
         for f in futures:
             results[futures[f]] = f.result()
@@ -45,7 +45,8 @@ def summarize(output_dir: str, sources: list[SourceInfo],
 
 def summarize_one(output_dir: str, info: SourceInfo,
                   client: Client, model: str, max_tokens: int,
-                  language: str = "zh-CN") -> SummaryResult:
+                  language: str = "zh-CN",
+                  max_parallel: int = 4) -> SummaryResult:
     result = SummaryResult(source_path=info.path)
     lang_instruction = f" You MUST write ALL output in {language}."
     try:
@@ -66,18 +67,26 @@ def summarize_one(output_dir: str, info: SourceInfo,
             ], CallOpts(model=model, max_tokens=max_tokens))
             result.summary = resp.content
         else:
-            chunk_summaries = []
-            for chunk in content.chunks:
-                resp = client.chat_completion([
-                    Message(role="system", content="You are summarizing a section of a larger document." + lang_instruction),
-                    Message(role="user", content=f"Summarize section {chunk.index+1} of {os.path.basename(info.path)}:\n\n{chunk.text}"),
-                ], CallOpts(model=model, max_tokens=max_tokens // content.chunk_count))
-                chunk_summaries.append(resp.content)
+            chunk_results = [None] * len(content.chunks)
+            with ThreadPoolExecutor(max_workers=min(len(content.chunks), max_parallel)) as chunk_pool:
+                chunk_futures = {}
+                for chunk in content.chunks:
+                    f = chunk_pool.submit(
+                        client.chat_completion,
+                        [
+                            Message(role="system", content="You are summarizing a section of a larger document." + lang_instruction),
+                            Message(role="user", content=f"Summarize section {chunk.index+1} of {os.path.basename(info.path)}:\n\n{chunk.text}"),
+                        ],
+                        CallOpts(model=model, max_tokens=max_tokens // content.chunk_count),
+                    )
+                    chunk_futures[f] = chunk.index
+                for f in chunk_futures:
+                    chunk_results[chunk_futures[f]] = f.result().content
 
-            combined = "\n\n---\n\n".join(chunk_summaries)
+            combined = "\n\n---\n\n".join(chunk_results)
             resp = client.chat_completion([
                 Message(role="system", content="You are synthesizing partial summaries into a final summary." + lang_instruction),
-                Message(role="user", content=f"Combine these {len(chunk_summaries)} summaries of {os.path.basename(info.path)}:\n\n{combined}"),
+                Message(role="user", content=f"Combine these {len(chunk_results)} summaries of {os.path.basename(info.path)}:\n\n{combined}"),
             ], CallOpts(model=model, max_tokens=max_tokens))
             result.summary = resp.content
 

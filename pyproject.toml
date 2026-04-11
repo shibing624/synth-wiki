@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "synth-wiki"
-version = "0.1.0"
+version = "0.1.2"
 description = "Synthesize Wikipedia-style articles with LLM-powered research and tree search"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -51,4 +51,5 @@ synth-wiki = "synth_wiki.cli:main"
 include = ["synth_wiki*"]
 
 [tool.pytest.ini_options]
+asyncio_mode = "auto"
 testpaths = ["tests"]

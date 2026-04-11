@@ -3,6 +3,7 @@
 @author:XuMing(xuming624@qq.com)
 @description: 
 """
+import json
 import pytest
 from unittest.mock import MagicMock
 from synth_wiki.compiler.concepts import (extract_concepts, parse_concepts_json, filter_noisy_concepts,
@@ -31,12 +32,12 @@ class TestExtractConcepts:
     def test_empty_summaries_returns_empty(self, mock_client):
         assert extract_concepts([], {}, mock_client, "test") == []
 
-    def test_invalid_json_skips_gracefully(self):
+    def test_invalid_json_raises(self):
         client = MagicMock()
         client.chat_completion.return_value = Response(content="not json at all", model="test", usage=Usage())
         summaries = [SummaryResult(source_path="raw/doc.md", summary="content")]
-        result = extract_concepts(summaries, {}, client, "test")
-        assert result == []
+        with pytest.raises(json.JSONDecodeError):
+            extract_concepts(summaries, {}, client, "test")
 
 
 class TestParseConceptsJSON:

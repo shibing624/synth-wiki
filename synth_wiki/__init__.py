@@ -8,7 +8,7 @@ Usage:
     cfg = load_config("~/.synth_wiki/config.yaml", "my-project")
     result = compile("my-project")
 """
-__version__ = "0.1.0"
+__version__ = "0.1.2"
 
 # --- Submodules (keep for internal cross-imports) ---
 from synth_wiki import git
