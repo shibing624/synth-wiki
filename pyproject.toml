@@ -1,0 +1,54 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+
+[project]
+name = "synth-wiki"
+version = "0.1.0"
+description = "Synthesize Wikipedia-style articles with LLM-powered research and tree search"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+    {name = "XuMing", email = "xuming624@qq.com"},
+]
+keywords = ["synth-wiki", "wikipedia", "llm", "research", "tree-search", "article-generation"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Education",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "click>=8.1",
+    "pyyaml>=6.0",
+    "httpx>=0.27",
+    "pytreesearch>=0.1",
+    "loguru>=0.7",
+    "tqdm>=4.66",
+]
+
+[project.urls]
+Homepage = "https://github.com/shibing624/synth-wiki"
+Repository = "https://github.com/shibing624/synth-wiki"
+Issues = "https://github.com/shibing624/synth-wiki/issues"
+
+[project.optional-dependencies]
+watch = ["watchdog>=4.0"]
+dev = ["pytest>=8.0", "pytest-cov"]
+
+[project.scripts]
+synth-wiki = "synth_wiki.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["synth_wiki*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,0 +1,5 @@
+Capture the following knowledge for the wiki.
+Context: $context
+Tags: $tags
+
+Structure the content with clear sections and key takeaways.

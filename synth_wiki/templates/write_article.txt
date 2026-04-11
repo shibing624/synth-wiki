@@ -1,0 +1,7 @@
+Write a comprehensive wiki article about: $concept_name
+
+Concept ID: $concept_id
+Sources: $sources
+
+Use YAML frontmatter, ## sections, and [[wikilinks]].
+Maximum length: $max_tokens tokens.

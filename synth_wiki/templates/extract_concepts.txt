@@ -1,0 +1,7 @@
+Extract concepts from these summaries.
+Existing concepts (avoid duplicates): $existing_concepts
+
+Summaries:
+$summaries
+
+Output ONLY a JSON array of objects with: name, aliases, sources, type.

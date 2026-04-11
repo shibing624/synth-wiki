@@ -1,0 +1,4 @@
+Describe this image from a knowledge base.
+Source: $source_path
+
+Provide: 1) Caption 2) Type 3) Key info 4) Visible text 5) Related concepts
