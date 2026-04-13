@@ -84,7 +84,8 @@ def compile(ctx, project, watch, dry_run, fresh, batch, no_cache):
         dry_run=dry_run, fresh=fresh, batch=batch, no_cache=no_cache,
         config_path=ctx.obj["config_path"]))
     click.echo(f"Compile: +{result.added} added, ~{result.modified} modified, -{result.removed} removed, "
-               f"{result.summarized} summarized, {result.concepts_extracted} concepts, {result.articles_written} articles")
+               f"{result.summarized} summarized, {result.concepts_extracted} concepts, "
+               f"{result.articles_written} articles, {result.syntheses_written} syntheses")
 
 
 @main.command()
@@ -141,7 +142,7 @@ def search(ctx, project, query_text, tags, limit):
         click.echo("No results found.")
         return
     for i, r in enumerate(results):
-        content = r.content[:120] + "..." if len(r.content) > 120 else r.content
+        content = r.content[:300] + "..." if len(r.content) > 300 else r.content
         click.echo(f"{i+1}. [{r.score:.4f}] {r.article_path}")
         click.echo(f"   {content}")
 
@@ -214,8 +215,9 @@ def list_projects_cmd(ctx):
 @main.command()
 @click.option("--project", default="", help="Project name (from config.yaml)")
 @click.argument("question", nargs=-1, required=True)
+@click.option("--archive", is_flag=True, help="Archive the answer as a wiki page")
 @click.pass_context
-def query(ctx, project, question):
+def query(ctx, project, question, archive):
     """Ask a question and get an answer from the wiki."""
     from synth_wiki.config import load
     from synth_wiki.server import _do_query
@@ -226,7 +228,7 @@ def query(ctx, project, question):
 
     question_text = " ".join(question)
     cfg = load(ctx.obj["config_path"], project_name)
-    answer = _do_query(project_name, cfg, ctx.obj["config_path"], question_text)
+    answer = _do_query(project_name, cfg, ctx.obj["config_path"], question_text, archive=archive)
     click.echo(answer)
 
 

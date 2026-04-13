@@ -72,8 +72,23 @@ Existing concepts (avoid duplicates): {', '.join(existing_list)}
 Summaries:
 {chr(10).join(summary_texts)}
 
-For each concept: name (lowercase-hyphenated), aliases (in {language}), sources (file paths), type (concept/technique/claim/entity/comparison).
-Use type "entity" for people, organizations, products, or models. Use type "comparison" for side-by-side analyses.
+For each concept output: name (lowercase-hyphenated), aliases (in {language}), sources (file paths), type.
+
+Type classification rules (IMPORTANT - choose the most specific type):
+- "entity": people, companies, organizations, products, models, datasets (e.g., OpenAI, GPT-4, ImageNet, Yann LeCun)
+- "comparison": side-by-side analyses, X vs Y, benchmarks comparing multiple approaches
+- "technique": specific methods, algorithms, optimizations (e.g., flash-attention, LoRA, dropout)
+- "claim": assertions, findings, conclusions from research
+- "concept": general ideas, theories, architectures (default only if none of the above fit)
+
+Example output:
+[
+  {{"name": "openai", "aliases": ["OpenAI"], "sources": ["raw/report.md"], "type": "entity"}},
+  {{"name": "flash-attention", "aliases": ["FlashAttention"], "sources": ["raw/paper.md"], "type": "technique"}},
+  {{"name": "gpt-4-vs-claude", "aliases": ["GPT-4 vs Claude"], "sources": ["raw/comparison.md"], "type": "comparison"}},
+  {{"name": "transformer", "aliases": ["Transformer"], "sources": ["raw/paper.md"], "type": "concept"}}
+]
+
 Output ONLY a JSON array."""
 
     resp = client.chat_completion([

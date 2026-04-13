@@ -8,3 +8,6 @@ from synth_wiki.compiler.diff import diff, DiffResult, SourceInfo
 from synth_wiki.compiler.summarize import summarize, SummaryResult
 from synth_wiki.compiler.concepts import extract_concepts, ExtractedConcept
 from synth_wiki.compiler.write import write_articles, ArticleResult
+from synth_wiki.compiler.synthesize import generate_syntheses, SynthesisResult
+from synth_wiki.compiler.overview import generate_overview
+from synth_wiki.compiler.archive import archive_query

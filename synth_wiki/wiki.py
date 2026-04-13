@@ -60,7 +60,7 @@ def init_greenfield(project_name: str, source_dir: str, output_dir: str,
 
     # Create source and output directories
     os.makedirs(source_dir, exist_ok=True)
-    for sub in ["summaries", "concepts", "entities", "comparisons", "connections", "outputs", "images", "archive"]:
+    for sub in ["summaries", "concepts", "entities", "comparisons", "connections", "syntheses", "outputs", "images", "archive"]:
         os.makedirs(os.path.join(output_dir, sub), exist_ok=True)
 
     # Register project in config
@@ -91,7 +91,7 @@ def init_vault_overlay(project_name: str, vault_dir: str, source_folders: list[s
     vault_dir = os.path.abspath(vault_dir)
     output_dir = os.path.join(vault_dir, output)
 
-    for sub in ["summaries", "concepts", "entities", "comparisons", "connections", "outputs", "images", "archive"]:
+    for sub in ["summaries", "concepts", "entities", "comparisons", "connections", "syntheses", "outputs", "images", "archive"]:
         os.makedirs(os.path.join(output_dir, sub), exist_ok=True)
 
     sources = [{"path": os.path.join(vault_dir, sf), "type": "article", "watch": True} for sf in source_folders]

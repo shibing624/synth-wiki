@@ -129,7 +129,7 @@ synth-wiki search "attention mechanism"
 | `synth-wiki init [--name] [--source] [--output] [--vault]` | 初始化项目（所有参数可选） |
 | `synth-wiki compile [--watch] [--dry-run] [--fresh] [--batch] [--no-cache]` | 将源文件编译为 wiki 文章 |
 | `synth-wiki search "query" [--tags] [--limit]` | 通过 TreeSearch 引擎进行文档搜索 |
-| `synth-wiki query "question"` | 对 wiki 进行自然语言问答 |
+| `synth-wiki query "question" [--archive]` | 对 wiki 进行自然语言问答（--archive 将有价值的回答存为 wiki 页面） |
 | `synth-wiki ingest <url\|path>` | 添加单个源文件 |
 | `synth-wiki lint [--fix] [--pass-name]` | 检查并修复文章质量 |
 | `synth-wiki status` | 查看 wiki 统计和健康状态 |
@@ -203,7 +203,7 @@ URL 导入会：
 
 ### 编译流水线
 
-导入的来源经过 4 步编译处理：
+导入的来源经过多步编译处理：
 
 ```
 源文件 (MD/PDF/DOCX/JSON/Code/TXT/Image)
@@ -231,7 +231,23 @@ URL 导入会：
   └──────┬────────┘
          │
          ▼
-  结构化 Wiki（摘要 + 概念文章 + 知识图谱）
+  ┌───────────────┐
+  │  5. Synthesize│  按共享概念聚类摘要，
+  │               │  生成跨源综合分析页面
+  └──────┬────────┘
+         │
+         ▼
+  ┌───────────────┐
+  │  6. Overview  │  生成全局鸟瞰总结（overview.md）
+  └──────┬────────┘
+         │
+         ▼
+  ┌───────────────┐
+  │  7. Images    │  从源文件中提取图片
+  └──────┬────────┘
+         │
+         ▼
+  结构化 Wiki（摘要 + 文章 + 综合页 + 鸟瞰页 + 知识图谱）
 ```
 
 编译支持断点续传：如果中途失败，下次编译会从上次的检查点继续。使用 `--fresh` 忽略检查点重新开始。

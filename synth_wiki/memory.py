@@ -81,35 +81,75 @@ class Store:
         if not query or not query.strip():
             return []
         with self._lock:
-            # Load all indexed documents for TreeSearcher
             docs = self._fts.load_all_documents()
             if not docs:
                 return []
-            # TreeSearcher auto mode: tree walk with FTS5 scoring
+            # TreeSearcher auto mode: tree walk + FTS5 scoring (exact match)
             paths, flat_nodes = self._searcher.search(query, docs)
-            results = []
-            seen = set()
-            for node in flat_nodes:
-                doc_id = node.get("doc_id", "")
-                if not doc_id or doc_id in seen:
-                    continue
-                seen.add(doc_id)
-                doc = self._fts.load_document(doc_id)
-                if doc is None:
-                    continue
-                entry = _document_to_entry(doc)
-                if tags and not any(t in entry.tags for t in tags):
-                    continue
-                results.append(SearchResult(
-                    id=entry.id,
-                    content=entry.content,
-                    tags=entry.tags,
-                    article_path=entry.article_path,
-                    score=node.get("score", node.get("fts_score", 0.0)),
-                    rank=len(results) + 1,
-                ))
-                if len(results) >= limit:
-                    break
+            results = self._collect_results(flat_nodes, tags, limit)
+            if results:
+                return results
+            # Fallback: FTS5 prefix match (fts → fts*, matches fts5/ftsearch/...)
+            prefix_expr = _build_prefix_expr(query)
+            if not prefix_expr:
+                return []
+            fts_hits = self._fts.search(
+                query=query,
+                fts_expression=prefix_expr,
+                top_k=limit * 3,
+            )
+            return self._collect_fts_results(fts_hits, tags, limit)
+
+    def _collect_results(self, flat_nodes: list[dict], tags: list[str] | None, limit: int) -> list[SearchResult]:
+        results = []
+        seen: set[str] = set()
+        for node in flat_nodes:
+            doc_id = node.get("doc_id", "")
+            if not doc_id or doc_id in seen:
+                continue
+            seen.add(doc_id)
+            doc = self._fts.load_document(doc_id)
+            if doc is None:
+                continue
+            entry = _document_to_entry(doc)
+            if tags and not any(t in entry.tags for t in tags):
+                continue
+            results.append(SearchResult(
+                id=entry.id,
+                content=entry.content,
+                tags=entry.tags,
+                article_path=entry.article_path,
+                score=node.get("score", node.get("fts_score", 0.0)),
+                rank=len(results) + 1,
+            ))
+            if len(results) >= limit:
+                break
+        return results
+
+    def _collect_fts_results(self, fts_hits: list[dict], tags: list[str] | None, limit: int) -> list[SearchResult]:
+        results = []
+        seen: set[str] = set()
+        for hit in fts_hits:
+            doc_id = hit.get("doc_id", "")
+            if not doc_id or doc_id in seen:
+                continue
+            seen.add(doc_id)
+            doc = self._fts.load_document(doc_id)
+            if doc is None:
+                continue
+            entry = _document_to_entry(doc)
+            if tags and not any(t in entry.tags for t in tags):
+                continue
+            results.append(SearchResult(
+                id=entry.id,
+                content=entry.content,
+                tags=entry.tags,
+                article_path=entry.article_path,
+                score=hit.get("fts_score", hit.get("score", 0.0)),
+                rank=len(results) + 1,
+            ))
+            if len(results) >= limit:
+                break
         return results
 
     def count(self) -> int:
@@ -120,6 +160,14 @@ class Store:
     def close(self) -> None:
         with self._lock:
             self._fts.close()
+
+
+def _build_prefix_expr(query: str) -> str:
+    """Build FTS5 prefix expression: each word gets a trailing * for prefix matching."""
+    words = [w for w in query.strip().split() if w]
+    if not words:
+        return ""
+    return " OR ".join(f"{w.lower()}*" for w in words)
 
 
 def content_hash(content: str) -> str:

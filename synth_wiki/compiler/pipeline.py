@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 @author:XuMing(xuming624@qq.com)
-@description: Full compile orchestrator: diff -> summarize -> concepts -> write articles.
+@description: Full compile orchestrator: diff -> summarize -> concepts -> write -> synthesize -> overview.
 """
 from __future__ import annotations
 import json
@@ -21,7 +21,8 @@ from synth_wiki.compiler.concepts import extract_concepts, ExtractedConcept
 from synth_wiki.compiler.write import write_articles, ArticleResult
 from synth_wiki.compiler.images import extract_images
 from synth_wiki.compiler.index import generate_schema, generate_index
-from synth_wiki.compiler.stubs import generate_stubs
+from synth_wiki.compiler.synthesize import generate_syntheses
+from synth_wiki.compiler.overview import generate_overview
 from synth_wiki.embed import new_from_config
 from synth_wiki import git
 from synth_wiki.llm.client import Client
@@ -53,6 +54,7 @@ class CompileResult:
     summarized: int = 0
     concepts_extracted: int = 0
     articles_written: int = 0
+    syntheses_written: int = 0
     errors: int = 0
     cost_report: Optional[CostReport] = None
 
@@ -85,7 +87,7 @@ def compile(project_name: str, opts: CompileOpts = None) -> CompileResult:
     source_dirs = cfg.resolve_sources()
 
     # Ensure output directories exist
-    for sub in ["summaries", "concepts", "entities", "comparisons", "connections", "outputs", "images", "archive"]:
+    for sub in ["summaries", "concepts", "entities", "comparisons", "connections", "syntheses", "outputs", "images", "archive"]:
         os.makedirs(os.path.join(output_dir, sub), exist_ok=True)
 
     prompts_dir = os.path.join(output_dir, "prompts")
@@ -199,6 +201,29 @@ def compile(project_name: str, opts: CompileOpts = None) -> CompileResult:
                     else:
                         result.articles_written += 1
 
+        # Pass 4: Synthesize cross-source insights
+        if successful and concepts:
+            synth_model = cfg.models.write or model
+            synth_max = cfg.compiler.article_max_tokens or 4000
+            client.set_pass("synthesize")
+            syntheses = generate_syntheses(
+                output_dir, successful, concepts, client, synth_model,
+                synth_max, cfg.compiler.max_parallel,
+                mem_store, vec_store, embedder, cfg.language,
+            )
+            for sr in syntheses:
+                if sr.error is not None:
+                    result.errors += 1
+                else:
+                    result.syntheses_written += 1
+            if result.syntheses_written > 0:
+                print(f"Syntheses: {result.syntheses_written} cross-source pages", file=sys.stderr)
+
+        # Generate overview
+        overview_model = cfg.models.write or model
+        client.set_pass("overview")
+        generate_overview(output_dir, client, overview_model, cfg.project, cfg.language)
+
         extract_images(output_dir, to_process)
 
         for removed in diff_result.removed:
@@ -213,10 +238,6 @@ def compile(project_name: str, opts: CompileOpts = None) -> CompileResult:
         generate_schema(output_dir, description=cfg.description,
                         page_threshold=cfg.compiler.page_threshold)
         generate_index(output_dir, project_name=cfg.project)
-
-        stubs = generate_stubs(output_dir)
-        if stubs:
-            print(f"Stubs: {len(stubs)} stub pages created for dangling wikilinks", file=sys.stderr)
 
         if result.errors == 0:
             try:
@@ -269,6 +290,7 @@ def _write_changelog(output_dir: str, result: CompileResult) -> None:
         f"- Summarized: {result.summarized}\n"
         f"- Concepts: {result.concepts_extracted}\n"
         f"- Articles: {result.articles_written}\n"
+        f"- Syntheses: {result.syntheses_written}\n"
         f"- Errors: {result.errors}\n\n"
     )
     header = "# CHANGELOG\n\nCompilation history for synth-wiki.\n\n"

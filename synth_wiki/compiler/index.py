@@ -99,6 +99,7 @@ def generate_index(output_dir: str, project_name: str = "") -> str:
         "Entities": "entities",
         "Concepts": "concepts",
         "Comparisons": "comparisons",
+        "Syntheses": "syntheses",
     }
 
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d")

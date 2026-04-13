@@ -56,7 +56,8 @@ def _do_search(project: str, cfg: Config, cfg_path: str,
         return searcher.search(SearchOpts(query=query, tags=tags, limit=limit), query_vec)
 
 
-def _do_query(project: str, cfg: Config, cfg_path: str, question: str) -> str:
+def _do_query(project: str, cfg: Config, cfg_path: str, question: str,
+              archive: bool = False) -> str:
     """Shared Q&A logic for query tool and CLI query command."""
     from synth_wiki.llm.client import Client, Message, CallOpts
 
@@ -84,7 +85,35 @@ def _do_query(project: str, cfg: Config, cfg_path: str, question: str) -> str:
     ], CallOpts(model=model, max_tokens=2000))
 
     sources = ", ".join(r.article_path for r in results[:3])
-    return f"{resp.content}\n\n---\nSources: {sources}"
+    answer = f"{resp.content}\n\n---\nSources: {sources}"
+
+    # Archive the Q&A if requested
+    if archive:
+        from synth_wiki.compiler.archive import archive_query
+        from synth_wiki.storage import DB
+        from synth_wiki.memory import Store as MemoryStore
+        from synth_wiki.vectors import Store as VectorStore
+        from synth_wiki.embed import new_from_config
+
+        output_dir = cfg.resolve_output()
+        db_p = paths.db_path(project)
+        db = DB.open(db_p)
+        mem = MemoryStore(db_p)
+        vec = VectorStore(db)
+        embedder = new_from_config(cfg)
+        try:
+            sources_used = [r.article_path for r in results[:3]]
+            archived_path = archive_query(
+                output_dir, question, resp.content, sources_used,
+                client, model, mem, vec, embedder, cfg.language,
+            )
+            if archived_path:
+                answer += f"\n[Archived to {os.path.basename(archived_path)}]"
+        finally:
+            mem.close()
+            db.close()
+
+    return answer
 
 
 def create_server(project_name: str = "", config_path: str = "") -> FastMCP:
@@ -151,11 +180,12 @@ def create_server(project_name: str = "", config_path: str = "") -> FastMCP:
     # Tool: query
     # ------------------------------------------------------------------
     @mcp.tool()
-    def query(question: str, project: str = "") -> str:
+    def query(question: str, archive: bool = False, project: str = "") -> str:
         """Answer a question using wiki knowledge. Searches relevant articles and synthesizes an answer via LLM.
 
         Args:
             question: Natural language question about the wiki's domain.
+            archive: If true, archive the Q&A as a new wiki page (default false).
             project: Project name (optional).
 
         Returns:
@@ -163,7 +193,7 @@ def create_server(project_name: str = "", config_path: str = "") -> FastMCP:
         """
         proj = _resolve_project(project)
         cfg = load_config(_cfg_path(), proj)
-        return _do_query(proj, cfg, _cfg_path(), question)
+        return _do_query(proj, cfg, _cfg_path(), question, archive=archive)
 
     # ------------------------------------------------------------------
     # Tool: ingest
@@ -216,6 +246,7 @@ def create_server(project_name: str = "", config_path: str = "") -> FastMCP:
             f"Summarized: {result.summarized}",
             f"Concepts: {result.concepts_extracted}",
             f"Articles: {result.articles_written}",
+            f"Syntheses: {result.syntheses_written}",
             f"Errors: {result.errors}",
         ]
         if result.cost_report:
@@ -283,13 +314,13 @@ def create_server(project_name: str = "", config_path: str = "") -> FastMCP:
         cfg = load_config(_cfg_path(), proj)
         output_dir = cfg.resolve_output()
 
-        for subdir in ["concepts", "entities", "comparisons"]:
+        for subdir in ["concepts", "entities", "comparisons", "syntheses"]:
             path = os.path.join(output_dir, subdir, f"{name}.md")
             if os.path.exists(path):
                 with open(path) as f:
                     return f.read()
 
-        return f"Article '{name}' not found in concepts/, entities/, or comparisons/."
+        return f"Article '{name}' not found in concepts/, entities/, comparisons/, or syntheses/."
 
     # ------------------------------------------------------------------
     # Tool: list_articles
@@ -309,7 +340,7 @@ def create_server(project_name: str = "", config_path: str = "") -> FastMCP:
         cfg = load_config(_cfg_path(), proj)
         output_dir = cfg.resolve_output()
 
-        type_dirs = {"concept": "concepts", "entity": "entities", "comparison": "comparisons"}
+        type_dirs = {"concept": "concepts", "entity": "entities", "comparison": "comparisons", "synthesis": "syntheses"}
         if article_type and article_type in type_dirs:
             scan = {article_type: type_dirs[article_type]}
         else:

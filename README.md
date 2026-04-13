@@ -21,8 +21,9 @@ An implementation of [Andrej Karpathy's idea](https://x.com/karpathy/status/2039
 Drop in your papers, articles, and notes. `synth-wiki` compiles them into a structured, interlinked wiki — with concepts extracted, cross-references discovered, and everything searchable via a powerful tree-aware search engine.
 
 - **Your sources in, a wiki out.** Add documents to a folder. The LLM reads, summarizes, extracts concepts, and writes interconnected articles.
+- **Cross-source syntheses.** Automatically discovers patterns, contradictions, and emergent insights across multiple sources — not just per-document summaries.
 - **Compounding knowledge.** Every new source enriches existing articles. The wiki gets smarter as it grows.
-- **Ask your wiki questions.** Enhanced structure-aware search powered by [TreeSearch](https://github.com/shibing624/TreeSearch). Ask natural language questions and get cited, highly-relevant answers.
+- **Ask your wiki questions.** Enhanced structure-aware search powered by [TreeSearch](https://github.com/shibing624/TreeSearch). Ask natural language questions and get cited, highly-relevant answers. Use `--archive` to save valuable Q&A as new wiki pages.
 - **Native Chinese Support.** Built-in Jieba tokenization ensures excellent retrieval for Chinese documents.
 
 ## Install
@@ -159,14 +160,16 @@ Just drop files into your source folder — `synth-wiki` detects the format auto
 ./wiki/                           # Compiled output directory (auto-generated)
 ├── SCHEMA.md                     # Domain conventions, tag taxonomy, page thresholds
 ├── index.md                      # Auto-generated content catalog by type
+├── overview.md                   # Auto-generated bird's-eye summary of the entire wiki
 ├── summaries/                    # Pass 1: Source summaries
 ├── concepts/                     # Pass 3: Wiki articles (concepts/techniques/claims)
 │   ├── transformer.md
 │   └── self-attention.md
 ├── entities/                     # Entity pages (people, orgs, products, models)
 ├── comparisons/                  # Side-by-side analysis pages
+├── syntheses/                    # Pass 4: Cross-source synthesis pages
 ├── connections/                  # Cross-concept relation pages (reserved)
-├── outputs/                     # Exported artifacts (JSON, graph data, etc.)
+├── outputs/                      # Exported artifacts (JSON, graph data, etc.)
 ├── images/                       # Extracted images
 ├── archive/
 ├── prompts/                      # Custom prompts (optional)
@@ -203,7 +206,7 @@ URL ingestion will:
 
 ### Compile Pipeline
 
-Imported sources go through a 4-step compilation:
+Imported sources go through a multi-step compilation:
 
 ```
 Source Files (MD/PDF/DOCX/JSON/Code/TXT/Image)
@@ -231,7 +234,23 @@ Source Files (MD/PDF/DOCX/JSON/Code/TXT/Image)
   └──────┬────────┘
          │
          ▼
-  Structured Wiki (summaries + concept articles + knowledge graph)
+  ┌───────────────┐
+  │  5. Synthesize│  Cluster summaries by shared concepts,
+  │               │  generate cross-source analysis pages
+  └──────┬────────┘
+         │
+         ▼
+  ┌───────────────┐
+  │  6. Overview  │  Generate a bird's-eye summary (overview.md)
+  └──────┬────────┘
+         │
+         ▼
+  ┌───────────────┐
+  │  7. Images    │  Extract images from source files
+  └──────┬────────┘
+         │
+         ▼
+  Structured Wiki (summaries + articles + syntheses + overview + knowledge graph)
 ```
 
 Compilation supports checkpoint resume: if interrupted, the next compile picks up from the last checkpoint. Use `--fresh` to ignore checkpoints and restart.
@@ -253,8 +272,6 @@ Install watchdog for best performance:
 ```bash
 pip install synth-wiki[watch]
 ```
-
-> **Details:** [Installation and Configuration](docs/self-hosted-server.md)
 
 ## Linting
 
