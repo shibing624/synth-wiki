@@ -41,13 +41,18 @@ class Store:
     def __init__(self, db_path: str):
         self._db_path = db_path
         self._lock = threading.Lock()
+        # Create FTS5Index with a cross-thread-safe connection.
+        # We manage the connection ourselves to allow ThreadPoolExecutor usage.
+        conn = sqlite3.connect(db_path, check_same_thread=False)
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA synchronous=NORMAL")
         self._fts = FTS5Index(db_path=db_path)
-        # Enable cross-thread usage for ThreadPoolExecutor in write_articles
+        # Replace the internal connection with our cross-thread one.
+        # WARNING: This accesses a private attribute of FTS5Index.
+        # TODO: Upstream a public API for custom connection or check_same_thread support.
         if self._fts._conn is not None:
             self._fts._conn.close()
-            self._fts._conn = sqlite3.connect(db_path, check_same_thread=False)
-            self._fts._conn.execute("PRAGMA journal_mode=WAL")
-            self._fts._conn.execute("PRAGMA synchronous=NORMAL")
+        self._fts._conn = conn
         self._searcher = TreeSearcher(fts_index=self._fts)
 
     def add(self, entry: Entry) -> None:

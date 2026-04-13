@@ -7,7 +7,8 @@ import os
 import pytest
 from synth_wiki.config import Config, Source
 from synth_wiki.manifest import Manifest
-from synth_wiki.compiler.diff import diff, file_hash, _is_ignored, SourceInfo
+from synth_wiki.compiler.diff import diff, file_hash, SourceInfo
+from synth_wiki.paths import is_ignored
 
 
 @pytest.fixture
@@ -80,13 +81,13 @@ class TestDiff:
 
 class TestIsIgnored:
     def test_folder_match(self):
-        assert _is_ignored("/abs/raw/secret_stuff/file.md", ["secret_stuff"]) is True
+        assert is_ignored("/abs/raw/secret_stuff/file.md", ["secret_stuff"]) is True
 
     def test_exact_match(self):
-        assert _is_ignored("/abs/raw/secret_stuff", ["secret_stuff"]) is True
+        assert is_ignored("/abs/raw/secret_stuff", ["secret_stuff"]) is True
 
     def test_no_match(self):
-        assert _is_ignored("/abs/raw/public/file.md", ["secret_stuff"]) is False
+        assert is_ignored("/abs/raw/public/file.md", ["secret_stuff"]) is False
 
     def test_path_component_match(self):
-        assert _is_ignored("/abs/raw/secret_stuff/sub/file.md", ["secret_stuff"]) is True
+        assert is_ignored("/abs/raw/secret_stuff/sub/file.md", ["secret_stuff"]) is True

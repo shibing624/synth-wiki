@@ -31,7 +31,7 @@ def tmp_project_dir(tmp_path, isolate_home):
 
     config = {
         "version": 1,
-        "api": {"provider": "gemini", "api_key": "fake_key"},
+        "api": {"provider": "gemini", "api_key": "fake_openai_key"},
         "models": {
             "summarize": "gemini-2.5-flash",
             "extract": "gemini-2.5-flash",

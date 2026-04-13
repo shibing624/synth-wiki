@@ -38,6 +38,8 @@ class Store:
         self._db.write_tx(_delete)
 
     def search(self, query: list[float], limit: int = 10) -> list[VectorResult]:
+        # TODO: This is brute-force linear scan O(n). Replace with FAISS or sqlite-vec
+        # for datasets larger than ~10k vectors.
         cursor = self._db.read_db.cursor()
         cursor.execute("SELECT id, embedding, dimensions FROM vec_entries")
 

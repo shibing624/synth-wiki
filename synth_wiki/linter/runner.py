@@ -5,12 +5,15 @@
 """
 from __future__ import annotations
 import json
+import logging
 import os
 import time
 from dataclasses import dataclass, field
 from typing import Protocol, Optional
 
 from synth_wiki.storage import DB
+
+_logger = logging.getLogger(__name__)
 
 
 class LintPass(Protocol):
@@ -51,10 +54,11 @@ class LintResult:
 class Runner:
     def __init__(self):
         from synth_wiki.linter.passes import (CompletenessPass, StylePass, OrphansPass,
-            ConsistencyPass, ImputePass, StalenessPass)
+            ConsistencyPass, ImputePass, StalenessPass, ContradictionDetectionPass)
         self._passes: list = [
             CompletenessPass(), StylePass(), OrphansPass(),
             ConsistencyPass(), ImputePass(), StalenessPass(),
+            ContradictionDetectionPass(),
         ]
 
     def run(self, ctx: LintContext, pass_name: str = "", fix: bool = False) -> list[LintResult]:
@@ -65,12 +69,14 @@ class Runner:
             start = time.time()
             try:
                 findings = p.run(ctx)
-            except Exception:
+            except Exception as e:
+                _logger.warning("lint pass %s failed: %s", p.name(), e)
                 continue
             duration = time.time() - start
             if fix and p.can_auto_fix() and findings:
                 try: p.fix(ctx, findings)
-                except Exception: pass
+                except Exception as e:
+                    _logger.warning("lint auto-fix %s failed: %s", p.name(), e)
             results.append(LintResult(findings=findings, pass_name=p.name(), duration=duration))
         return results
 

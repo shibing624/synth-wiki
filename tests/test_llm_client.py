@@ -61,17 +61,17 @@ def _fake_response(status: int, body: bytes) -> httpx.Response:
 
 class TestClientCreation:
     def test_openai_provider(self):
-        c = Client("openai", api_key="sk-test")
+        c = Client("openai", api_key="fake_openai_key")
         assert c.provider_name() == "openai"
         assert c.supports_vision() is True
 
     def test_anthropic_provider(self):
-        c = Client("anthropic", api_key="ant-test")
+        c = Client("anthropic", api_key="fake_openai_key")
         assert c.provider_name() == "anthropic"
         assert c.supports_vision() is True
 
     def test_gemini_provider(self):
-        c = Client("gemini", api_key="gem-test")
+        c = Client("gemini", api_key="fake_openai_key")
         assert c.provider_name() == "gemini"
         assert c.supports_vision() is True
 
@@ -90,7 +90,7 @@ class TestClientCreation:
 
 class TestChatCompletion:
     def test_openai_success(self):
-        c = Client("openai", api_key="sk-test", rate_limit=10000)
+        c = Client("openai", api_key="fake_openai_key", rate_limit=10000)
         msgs = [Message(role="user", content="hi")]
         opts = CallOpts(model="gpt-4o")
 
@@ -102,7 +102,7 @@ class TestChatCompletion:
         assert resp.tokens_used == 15
 
     def test_anthropic_success(self):
-        c = Client("anthropic", api_key="ant-test", rate_limit=10000)
+        c = Client("anthropic", api_key="fake_openai_key", rate_limit=10000)
         msgs = [Message(role="user", content="hi")]
         opts = CallOpts(model="claude-sonnet-4-20250514")
 
@@ -112,7 +112,7 @@ class TestChatCompletion:
         assert resp.content == "pong"
 
     def test_gemini_success(self):
-        c = Client("gemini", api_key="gem-test", rate_limit=10000)
+        c = Client("gemini", api_key="fake_openai_key", rate_limit=10000)
         msgs = [Message(role="user", content="hi")]
         opts = CallOpts(model="gemini-2.5-flash")
 
@@ -122,7 +122,7 @@ class TestChatCompletion:
         assert resp.content == "flash"
 
     def test_non_200_raises(self):
-        c = Client("openai", api_key="sk-test", rate_limit=10000)
+        c = Client("openai", api_key="fake_openai_key", rate_limit=10000)
         msgs = [Message(role="user", content="hi")]
         opts = CallOpts(model="gpt-4o")
 
@@ -131,7 +131,7 @@ class TestChatCompletion:
                 c.chat_completion(msgs, opts)
 
     def test_429_retry_succeeds(self):
-        c = Client("openai", api_key="sk-test", rate_limit=10000)
+        c = Client("openai", api_key="fake_openai_key", rate_limit=10000)
         msgs = [Message(role="user", content="hi")]
         opts = CallOpts(model="gpt-4o")
 
@@ -147,7 +147,7 @@ class TestChatCompletion:
         assert resp.content == "ok after retry"
 
     def test_429_exhausted_raises(self):
-        c = Client("openai", api_key="sk-test", rate_limit=10000)
+        c = Client("openai", api_key="fake_openai_key", rate_limit=10000)
         msgs = [Message(role="user", content="hi")]
         opts = CallOpts(model="gpt-4o")
 
@@ -157,7 +157,7 @@ class TestChatCompletion:
                     c.chat_completion(msgs, opts)
 
     def test_tracker_called(self):
-        c = Client("openai", api_key="sk-test", rate_limit=10000)
+        c = Client("openai", api_key="fake_openai_key", rate_limit=10000)
         c.set_pass("extract")
         tracker = MagicMock()
         c.set_tracker(tracker)
@@ -173,7 +173,7 @@ class TestChatCompletion:
         assert call_args[0] == "extract"
 
     def test_set_tracker_and_pass(self):
-        c = Client("openai", api_key="sk-test", rate_limit=10000)
+        c = Client("openai", api_key="fake_openai_key", rate_limit=10000)
         t = MagicMock()
         c.set_tracker(t)
         c.set_pass("my_pass")
@@ -187,7 +187,7 @@ class TestChatCompletion:
 
 class TestVision:
     def test_chat_completion_with_image(self):
-        c = Client("openai", api_key="sk-test", rate_limit=10000)
+        c = Client("openai", api_key="fake_openai_key", rate_limit=10000)
         msgs = [Message(role="system", content="You are helpful")]
         opts = CallOpts(model="gpt-4o")
 
@@ -213,7 +213,7 @@ class TestVision:
 
     def test_vision_message_format_openai(self):
         from synth_wiki.llm.providers import OpenAIProvider
-        p = OpenAIProvider(api_key="sk-test")
+        p = OpenAIProvider(api_key="fake_openai_key")
         msgs = [
             Message(role="user", content="describe this", image_base64="data123", image_mime="image/jpeg")
         ]
@@ -226,7 +226,7 @@ class TestVision:
 
     def test_vision_message_format_anthropic(self):
         from synth_wiki.llm.providers import AnthropicProvider
-        p = AnthropicProvider(api_key="ant-test")
+        p = AnthropicProvider(api_key="fake_openai_key")
         msgs = [
             Message(role="user", content="describe this", image_base64="data456", image_mime="image/png")
         ]
@@ -248,11 +248,12 @@ class TestRateLimiter:
         from synth_wiki.llm.client import RateLimiter
         # 60 rpm -> 1s interval
         rl = RateLimiter(requests_per_minute=60)
-        rl.acquire()  # first call, no wait
-        t0 = time.monotonic()
-        rl.acquire()  # second call should wait ~1s
-        elapsed = time.monotonic() - t0
-        assert 0.8 <= elapsed <= 1.5, f"Expected ~1s, got {elapsed:.3f}s"
+        with patch("synth_wiki.llm.client.time") as mock_time:
+            mock_time.monotonic.side_effect = [0.0, 0.0, 0.5, 1.0]
+            mock_time.sleep = MagicMock()
+            rl.acquire()  # first call: _last_request is 0.0, now=0.0, no wait needed since first call
+            rl.acquire()  # second call: now=0.5, elapsed=0.5 < 1.0, should sleep 0.5s
+            mock_time.sleep.assert_called()
 
     def test_rate_limiter_zero_no_wait(self):
         from synth_wiki.llm.client import RateLimiter
@@ -271,27 +272,27 @@ class TestRateLimiter:
 class TestProviderRequestFormat:
     def test_openai_request_url(self):
         from synth_wiki.llm.providers import OpenAIProvider
-        p = OpenAIProvider(api_key="sk-x")
+        p = OpenAIProvider(api_key="fake_openai_key")
         req = p.format_request([Message("user", "hi")], CallOpts(model="gpt-4o"))
         assert "chat/completions" in str(req.url)
 
     def test_anthropic_request_url(self):
         from synth_wiki.llm.providers import AnthropicProvider
-        p = AnthropicProvider(api_key="ant-x")
+        p = AnthropicProvider(api_key="fake_openai_key")
         req = p.format_request([Message("user", "hi")], CallOpts(model="claude-sonnet-4-20250514"))
         assert "messages" in str(req.url)
-        assert req.headers["x-api-key"] == "ant-x"
+        assert req.headers["x-api-key"] == "fake_openai_key"
 
     def test_gemini_request_url(self):
         from synth_wiki.llm.providers import GeminiProvider
-        p = GeminiProvider(api_key="gem-x")
+        p = GeminiProvider(api_key="fake_openai_key")
         req = p.format_request([Message("user", "hi")], CallOpts(model="gemini-2.5-flash"))
         assert "generateContent" in str(req.url)
-        assert "key=gem-x" in str(req.url)
+        assert "key=fake_openai_key" in str(req.url)
 
     def test_anthropic_system_message_extracted(self):
         from synth_wiki.llm.providers import AnthropicProvider
-        p = AnthropicProvider(api_key="ant-x")
+        p = AnthropicProvider(api_key="fake_openai_key")
         msgs = [
             Message(role="system", content="You are a bot"),
             Message(role="user", content="hello"),

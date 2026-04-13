@@ -135,6 +135,7 @@ Just drop files into your source folder — `synth-wiki` detects the format auto
 | `synth-wiki status` | Wiki stats and health |
 | `synth-wiki doctor` | Check config and connection status |
 | `synth-wiki projects` | List all configured projects |
+| `synth-wiki serve [--transport] [--port]` | Start MCP server for IDE/agent integration |
 
 ## Directory Structure
 
@@ -156,10 +157,14 @@ Just drop files into your source folder — `synth-wiki` detects the format auto
 └── captures/                     # URL-ingested files
 
 ./wiki/                           # Compiled output directory (auto-generated)
+├── SCHEMA.md                     # Domain conventions, tag taxonomy, page thresholds
+├── index.md                      # Auto-generated content catalog by type
 ├── summaries/                    # Pass 1: Source summaries
-├── concepts/                     # Pass 3: Wiki articles
+├── concepts/                     # Pass 3: Wiki articles (concepts/techniques/claims)
 │   ├── transformer.md
 │   └── self-attention.md
+├── entities/                     # Entity pages (people, orgs, products, models)
+├── comparisons/                  # Side-by-side analysis pages
 ├── connections/
 ├── outputs/
 ├── images/                       # Extracted images
@@ -251,6 +256,26 @@ pip install synth-wiki[watch]
 
 > **Details:** [Installation and Configuration](docs/self-hosted-server.md)
 
+## Linting
+
+`synth-wiki lint` runs quality checks across all wiki articles. Use `--fix` to auto-fix issues where possible.
+
+| Pass | Description | Auto-fix |
+|------|-------------|----------|
+| `completeness` | Broken `[[wikilinks]]` pointing to non-existent articles | No |
+| `style` | Missing YAML frontmatter | Yes |
+| `orphans` | Entities with no relations in the knowledge graph | No |
+| `consistency` | Already-tagged `contradicts` relations | No |
+| `impute` | Placeholder markers `[TODO]`, `[UNKNOWN]`, `[TBD]` | No |
+| `staleness` | Articles not updated for 90+ days | No |
+| `contradiction_detection` | Cross-source contradictions (conflicting confidence levels between articles sharing the same source) | No |
+
+```bash
+synth-wiki lint                    # Run all passes
+synth-wiki lint --fix              # Auto-fix where possible
+synth-wiki lint --pass-name style  # Run a single pass
+```
+
 ## Ontology: Entity-Relation Knowledge Graph
 
 synth-wiki automatically builds an ontology (knowledge graph) during compilation, connecting concepts, techniques, and sources through typed edges. The knowledge graph is stored in SQLite with CHECK constraints for data integrity.
@@ -271,6 +296,8 @@ Creates the edge: `Flash-Attention --optimizes--> Self-Attention`
 |------|-------------|-------------|
 | `concept` | General concept | Default type, created during Pass 3 |
 | `technique` | Specific technique/method | Concept type is "technique" |
+| `entity` | Person, org, product, or model | Concept type is "entity" |
+| `comparison` | Side-by-side analysis | Concept type is "comparison" |
 | `source` | Source file | Auto-created for each source reference |
 | `claim` | Assertion/conclusion | Concept type is "claim" |
 | `artifact` | Output/product | Reserved type |
@@ -419,6 +446,7 @@ compiler:
   auto_lint: true                  # Auto lint after compile
   mode: ""                         # standard, batch, auto
   prompt_cache: null               # null=true (cache enabled by default)
+  page_threshold: 1                # Min source count to create a page (2 = Karpathy rule)
 
 # Search config
 search:
@@ -431,6 +459,11 @@ linting:
     - completeness
     - style
   staleness_threshold_days: 90
+
+# MCP server config
+serve:
+  transport: stdio                 # stdio (for Claude Code / Cursor), sse (for web)
+  port: 3333                       # Port for SSE transport
 
 # Language (affects article generation language)
 language: zh-CN                    # zh-CN, zh-TW, en, ja, ko
@@ -552,6 +585,78 @@ synth-wiki init --name my-vault --vault --source ~/my-vault --output _wiki
 - Output writes to `_wiki/` subdirectory inside the vault
 - Obsidian can directly browse compiled output
 - `[[wikilinks]]` are compatible with Obsidian's link format
+
+**Using the wiki output as an Obsidian vault:**
+
+The compiled output directory (`wiki/`) works as a standalone Obsidian vault:
+
+1. Open Obsidian, choose "Open folder as vault", select your `wiki/` directory
+2. `[[wikilinks]]` in concept articles render as clickable links
+3. Graph View visualizes the knowledge network across all concepts
+4. YAML frontmatter enables Dataview queries (e.g., `TABLE tags FROM "concepts" WHERE confidence = "high"`)
+5. `SCHEMA.md` and `index.md` are auto-generated -- `index.md` serves as a navigable table of contents
+6. Images extracted during compilation are stored in `images/` -- set this as Obsidian's attachment folder
+
+For best results, install these Obsidian plugins:
+- **Dataview** -- for structured queries across wiki pages
+- **Graph Analysis** -- for deeper knowledge graph exploration
+
+## MCP Server (IDE / Agent Integration)
+
+synth-wiki includes a built-in [MCP](https://modelcontextprotocol.io/) server that exposes all wiki operations as tools. This enables integration with Claude Code, Cursor, Windsurf, and any MCP-compatible client.
+
+### Quick Start
+
+```bash
+# Install MCP support
+pip install synth-wiki[mcp]
+
+# Start the server (stdio for Claude Code / Cursor)
+synth-wiki serve
+
+# Start with SSE transport (for web clients)
+synth-wiki serve --transport sse --port 3333
+```
+
+### Claude Code Integration
+
+Add to your Claude Code MCP config (`~/.claude.json` or project `.mcp.json`):
+
+```json
+{
+  "mcpServers": {
+    "synth-wiki": {
+      "command": "synth-wiki",
+      "args": ["serve", "--project", "my-wiki"]
+    }
+  }
+}
+```
+
+### Available MCP Tools
+
+| Tool | Description |
+|------|-------------|
+| `search` | Search the wiki with TreeSearch + optional vector reranking |
+| `query` | Ask a question and get an LLM-synthesized answer with citations |
+| `ingest` | Add a source file or URL for compilation |
+| `compile` | Compile sources into wiki articles |
+| `lint` | Run quality checks on wiki articles |
+| `status` | Show wiki statistics and health |
+| `read_article` | Read a specific wiki article by slug name |
+| `list_articles` | List all wiki articles, optionally filtered by type |
+
+### Example: Using from Claude Code
+
+Once configured, you can ask Claude:
+
+```
+> Search my wiki for "attention mechanism"
+> What does my wiki say about transformers?
+> Ingest this URL into my wiki: https://example.com/paper
+> Compile my wiki
+> Run a lint check on my wiki
+```
 
 ## Python API
 

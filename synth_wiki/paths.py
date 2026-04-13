@@ -8,6 +8,7 @@ under ~/.synth_wiki/ so target project directories stay clean.
 """
 from __future__ import annotations
 import os
+from datetime import datetime, timezone
 
 # The global home directory for synth-wiki state
 HOME_DIR = os.path.join(os.path.expanduser("~"), ".synth_wiki")
@@ -56,3 +57,17 @@ def ensure_home() -> None:
     """Create the home directory structure."""
     for sub in ["db", "manifests", "state", "lintlog"]:
         os.makedirs(os.path.join(HOME_DIR, sub), exist_ok=True)
+
+
+def is_ignored(path: str, ignore: list[str]) -> bool:
+    """Check if path matches any ignore pattern."""
+    basename = os.path.basename(path)
+    for pattern in ignore:
+        if basename == pattern or pattern in path:
+            return True
+    return False
+
+
+def utc_now_iso() -> str:
+    """Return current UTC time as ISO 8601 string."""
+    return datetime.now(timezone.utc).isoformat()

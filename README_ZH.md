@@ -135,6 +135,7 @@ synth-wiki search "attention mechanism"
 | `synth-wiki status` | 查看 wiki 统计和健康状态 |
 | `synth-wiki doctor` | 检查配置和连接状态 |
 | `synth-wiki projects` | 列出所有配置的项目 |
+| `synth-wiki serve [--transport] [--port]` | 启动 MCP 服务器（IDE/Agent 集成） |
 
 ## 目录结构
 
@@ -156,10 +157,14 @@ synth-wiki search "attention mechanism"
 └── captures/                     # URL 导入的文件
 
 ./wiki/                           # 编译输出目录（自动生成）
+├── SCHEMA.md                     # 领域约定、标签体系、建页阈值
+├── index.md                      # 自动生成的内容目录（按类型分节）
 ├── summaries/                    # Pass 1: 来源摘要
-├── concepts/                     # Pass 3: 百科文章
+├── concepts/                     # Pass 3: 百科文章（概念/技术/主张）
 │   ├── transformer.md
 │   └── self-attention.md
+├── entities/                     # 实体页面（人物、组织、产品、模型）
+├── comparisons/                  # 对比分析页面
 ├── connections/
 ├── outputs/
 ├── images/                       # 提取的图片
@@ -249,6 +254,26 @@ URL 导入会：
 pip install synth-wiki[watch]
 ```
 
+## 质量检查（Linter）
+
+`synth-wiki lint` 对所有 wiki 文章运行质量检查。使用 `--fix` 自动修复可修复的问题。
+
+| 检查项 | 说明 | 自动修复 |
+|--------|------|----------|
+| `completeness` | 指向不存在文章的 `[[wikilinks]]` | 否 |
+| `style` | 缺少 YAML frontmatter | 是 |
+| `orphans` | 知识图谱中无关系的孤立实体 | 否 |
+| `consistency` | 已标记的 `contradicts` 矛盾关系 | 否 |
+| `impute` | 占位标记 `[TODO]`、`[UNKNOWN]`、`[TBD]` | 否 |
+| `staleness` | 超过 90 天未更新的文章 | 否 |
+| `contradiction_detection` | 跨源矛盾检测（共享同一来源的文章间 confidence 冲突） | 否 |
+
+```bash
+synth-wiki lint                    # 运行所有检查
+synth-wiki lint --fix              # 自动修复可修复项
+synth-wiki lint --pass-name style  # 只运行单个检查
+```
+
 ## 知识图谱（Ontology）
 
 synth-wiki 在编译过程中自动构建知识图谱，将概念、技术、来源等实体通过有类型的边连接起来。知识图谱存储在 SQLite 中，通过 CHECK 约束保证数据完整性。
@@ -269,6 +294,8 @@ synth-wiki 在编译过程中自动构建知识图谱，将概念、技术、来
 |------|------|----------|
 | `concept` | 通用概念 | 默认类型，Pass 3 写文章时创建 |
 | `technique` | 具体技术/方法 | 概念 type 为 "technique" 时 |
+| `entity` | 人物、组织、产品、模型 | 概念 type 为 "entity" 时 |
+| `comparison` | 对比分析 | 概念 type 为 "comparison" 时 |
 | `source` | 来源文件 | 概念引用的每个源文件自动创建 |
 | `claim` | 断言/结论 | 概念 type 为 "claim" 时 |
 | `artifact` | 产出物 | 保留类型 |
@@ -413,6 +440,7 @@ compiler:
   auto_lint: true                  # 编译后自动 lint
   mode: ""                         # standard, batch, auto
   prompt_cache: null               # null=true（默认启用缓存）
+  page_threshold: 1                # 建页最低源数量（2 = Karpathy 规则：2+ 源才建页）
 
 # 搜索配置
 search:
@@ -425,6 +453,11 @@ linting:
     - completeness
     - style
   staleness_threshold_days: 90
+
+# MCP 服务器配置
+serve:
+  transport: stdio                 # stdio（Claude Code / Cursor）, sse（Web 客户端）
+  port: 3333                       # SSE 模式端口
 
 # 语言（影响文章生成语言）
 language: zh-CN                    # zh-CN, zh-TW, en, ja, ko
@@ -546,6 +579,78 @@ synth-wiki init --name my-vault --vault --source ~/my-vault --output _wiki
 - 输出写入 vault 内的 `_wiki/` 子目录
 - Obsidian 可以直接浏览编译输出
 - `[[wikilinks]]` 与 Obsidian 的链接格式兼容
+
+**将 wiki 输出目录作为 Obsidian vault 使用：**
+
+编译输出目录（`wiki/`）可以直接作为独立的 Obsidian vault：
+
+1. 打开 Obsidian，选择 "Open folder as vault"，选择你的 `wiki/` 目录
+2. 概念文章中的 `[[wikilinks]]` 会渲染为可点击的链接
+3. Graph View 可视化所有概念之间的知识网络
+4. YAML frontmatter 支持 Dataview 查询（如 `TABLE tags FROM "concepts" WHERE confidence = "high"`）
+5. `SCHEMA.md` 和 `index.md` 自动生成 -- `index.md` 是可导航的内容目录
+6. 编译过程中提取的图片存储在 `images/` -- 将其设为 Obsidian 的附件文件夹
+
+推荐安装的 Obsidian 插件：
+- **Dataview** -- 跨 wiki 页面进行结构化查询
+- **Graph Analysis** -- 更深入的知识图谱探索
+
+## MCP 服务器（IDE / Agent 集成）
+
+synth-wiki 内置 [MCP](https://modelcontextprotocol.io/) 服务器，将所有 wiki 操作暴露为 MCP 工具。支持与 Claude Code、Cursor、Windsurf 及任何 MCP 兼容客户端集成。
+
+### 快速开始
+
+```bash
+# 安装 MCP 支持
+pip install synth-wiki[mcp]
+
+# 启动服务器（stdio 模式，适用于 Claude Code / Cursor）
+synth-wiki serve
+
+# SSE 模式（适用于 Web 客户端）
+synth-wiki serve --transport sse --port 3333
+```
+
+### Claude Code 集成
+
+在 Claude Code MCP 配置中添加（`~/.claude.json` 或项目 `.mcp.json`）：
+
+```json
+{
+  "mcpServers": {
+    "synth-wiki": {
+      "command": "synth-wiki",
+      "args": ["serve", "--project", "my-wiki"]
+    }
+  }
+}
+```
+
+### 可用 MCP 工具
+
+| 工具 | 说明 |
+|------|------|
+| `search` | 通过 TreeSearch + 可选向量重排序搜索 wiki |
+| `query` | 提问并获得 LLM 合成的带引用回答 |
+| `ingest` | 添加源文件或 URL 用于编译 |
+| `compile` | 将源文件编译为 wiki 文章 |
+| `lint` | 对 wiki 文章运行质量检查 |
+| `status` | 查看 wiki 统计和健康状态 |
+| `read_article` | 按 slug 名称读取特定 wiki 文章 |
+| `list_articles` | 列出所有 wiki 文章，可按类型过滤 |
+
+### 使用示例
+
+配置完成后，可以在 Claude Code 中直接对话：
+
+```
+> 在我的 wiki 中搜索 "注意力机制"
+> 我的 wiki 里关于 transformer 有什么内容？
+> 将这个 URL 导入我的 wiki: https://example.com/paper
+> 编译我的 wiki
+> 对我的 wiki 做一次质量检查
+```
 
 ## Python API
 

@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import random
+import threading
 import time
 from dataclasses import dataclass, field
 from typing import Optional
@@ -58,15 +59,17 @@ class RateLimiter:
     def __init__(self, requests_per_minute: int):
         self._interval = 60.0 / requests_per_minute if requests_per_minute > 0 else 0.0
         self._last_request: float = 0.0
+        self._lock = threading.Lock()
 
     def acquire(self) -> None:
         if self._interval <= 0:
             return
-        now = time.monotonic()
-        elapsed = now - self._last_request
-        if elapsed < self._interval:
-            time.sleep(self._interval - elapsed)
-        self._last_request = time.monotonic()
+        with self._lock:
+            now = time.monotonic()
+            elapsed = now - self._last_request
+            if elapsed < self._interval:
+                time.sleep(self._interval - elapsed)
+            self._last_request = time.monotonic()
 
 
 class Client:
@@ -118,8 +121,10 @@ class Client:
                 raise RuntimeError(f"Rate limited after {_MAX_RETRIES} attempts")
 
             if http_resp.status_code != 200:
+                # Truncate response body to avoid leaking sensitive info in stack traces
+                error_text = http_resp.text[:500] if http_resp.text else ""
                 raise RuntimeError(
-                    f"Provider {self._provider_name} returned {http_resp.status_code}: {http_resp.text}"
+                    f"Provider {self._provider_name} returned {http_resp.status_code}: {error_text}"
                 )
 
             response = self._provider.parse_response(http_resp.content)

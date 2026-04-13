@@ -70,6 +70,7 @@ class CompilerConfig:
     prompt_cache: Optional[bool] = None
     batch_threshold: int = 0
     token_price_per_million: float = 0.0
+    page_threshold: int = 1  # min source count to create a page (1=no filter, 2+=Karpathy rule)
 
     @property
     def prompt_cache_enabled(self) -> bool:
@@ -112,6 +113,7 @@ class Config:
     search: SearchConfig = field(default_factory=SearchConfig)
     linting: LintingConfig = field(default_factory=LintingConfig)
     serve: ServeConfig = field(default_factory=ServeConfig)
+    _raw_yaml: str = ""  # original YAML text before env var expansion
 
     @property
     def is_vault_overlay(self) -> bool:
@@ -158,6 +160,11 @@ class Config:
 
     def save(self, path: str) -> None:
         data = _config_to_dict(self)
+        # Never write expanded API keys to disk — omit api_key fields entirely
+        if "api" in data:
+            data["api"].pop("api_key", None)
+        if "embed" in data:
+            data["embed"].pop("api_key", None)
         with open(path, "w") as f:
             yaml.dump(data, f, default_flow_style=False, sort_keys=False)
 
@@ -349,6 +356,7 @@ def _dict_to_config(data: dict) -> Config:
             prompt_cache=c.get("prompt_cache"),
             batch_threshold=c.get("batch_threshold", 0),
             token_price_per_million=c.get("token_price_per_million", 0.0),
+            page_threshold=c.get("page_threshold", 1),
         )
 
     if "search" in data:
@@ -388,7 +396,10 @@ def _config_to_dict(cfg: Config) -> dict:
         d["ignore"] = cfg.ignore
     if cfg.vault:
         d["vault"] = {"root": cfg.vault.root}
-    d["api"] = {"provider": cfg.api.provider, "api_key": cfg.api.api_key}
+    d["api"] = {
+        "provider": cfg.api.provider,
+        "api_key": cfg.api.api_key,
+    }
     if cfg.api.base_url:
         d["api"]["base_url"] = cfg.api.base_url
     if cfg.api.rate_limit:
@@ -403,7 +414,13 @@ def _config_to_dict(cfg: Config) -> dict:
         "query": cfg.models.query,
     }
     if cfg.embed:
-        d["embed"] = {"provider": cfg.embed.provider, "model": cfg.embed.model}
+        d["embed"] = {
+            "provider": cfg.embed.provider,
+            "model": cfg.embed.model,
+            "dimensions": cfg.embed.dimensions,
+            "api_key": cfg.embed.api_key,
+            "base_url": cfg.embed.base_url,
+        }
     d["compiler"] = {
         "max_parallel": cfg.compiler.max_parallel,
         "debounce_seconds": cfg.compiler.debounce_seconds,
@@ -411,9 +428,20 @@ def _config_to_dict(cfg: Config) -> dict:
         "article_max_tokens": cfg.compiler.article_max_tokens,
         "auto_commit": cfg.compiler.auto_commit,
         "auto_lint": cfg.compiler.auto_lint,
+        "mode": cfg.compiler.mode,
+        "estimate_before": cfg.compiler.estimate_before,
+        "batch_threshold": cfg.compiler.batch_threshold,
+        "token_price_per_million": cfg.compiler.token_price_per_million,
+        "page_threshold": cfg.compiler.page_threshold,
     }
+    if cfg.compiler.prompt_cache is not None:
+        d["compiler"]["prompt_cache"] = cfg.compiler.prompt_cache
     d["search"] = {
         "default_limit": cfg.search.default_limit,
+    }
+    d["linting"] = {
+        "auto_fix_passes": cfg.linting.auto_fix_passes,
+        "staleness_threshold_days": cfg.linting.staleness_threshold_days,
     }
     d["serve"] = {"transport": cfg.serve.transport, "port": cfg.serve.port}
     return d

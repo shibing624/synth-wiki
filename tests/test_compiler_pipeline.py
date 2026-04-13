@@ -26,7 +26,7 @@ def project(tmp_path):
     # Override config to use fake API key and disable auto-commit
     from synth_wiki.config import load
     cfg = load(paths.config_path(), "test-compile")
-    cfg.api.api_key = "fake_key"
+    cfg.api.api_key = "fake_openai_key"
     cfg.compiler.auto_commit = False
     cfg.save(paths.config_path())
     # Add a source
@@ -94,7 +94,7 @@ class TestCompilePipeline:
         init_greenfield("empty-test", source_dir, output_dir)
         from synth_wiki.config import load
         cfg = load(paths.config_path(), "empty-test")
-        cfg.api.api_key = "fake_key"
+        cfg.api.api_key = "fake_openai_key"
         cfg.save(paths.config_path())
         result = compile("empty-test", CompileOpts(config_path=paths.config_path()))
         assert result.added == 0

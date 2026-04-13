@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from synth_wiki.config import Config
 from synth_wiki.extract import detect_source_type
 from synth_wiki.manifest import Manifest
+from synth_wiki.paths import is_ignored
 
 
 @dataclass
@@ -42,7 +43,7 @@ def diff(cfg: Config, mf: Manifest) -> DiffResult:
             for fname in files:
                 abs_path = os.path.join(root, fname)
 
-                if _is_ignored(abs_path, cfg.ignore):
+                if is_ignored(abs_path, cfg.ignore):
                     continue
 
                 file_size = os.path.getsize(abs_path)
@@ -77,14 +78,3 @@ def file_hash(path: str) -> str:
         for chunk in iter(lambda: f.read(8192), b""):
             h.update(chunk)
     return f"sha256:{h.hexdigest()}"
-
-
-def _is_ignored(path: str, ignore: list[str]) -> bool:
-    """Check if path matches any ignore pattern."""
-    basename = os.path.basename(path)
-    for pattern in ignore:
-        if basename == pattern:
-            return True
-        if pattern in path:
-            return True
-    return False

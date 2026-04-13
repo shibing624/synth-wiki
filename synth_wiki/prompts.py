@@ -5,7 +5,6 @@
 """
 from __future__ import annotations
 import os
-from dataclasses import dataclass, field
 from pathlib import Path
 from string import Template
 
@@ -86,37 +85,3 @@ def _template_name_to_filename(template_name: str) -> str:
     name = template_name.removesuffix(".txt")
     name = name.replace("_", "-")
     return name + ".md"
-
-
-@dataclass
-class SummarizeData:
-    source_path: str = ""
-    source_type: str = ""
-    max_tokens: int = 2000
-
-
-@dataclass
-class ExtractData:
-    existing_concepts: str = ""
-    summaries: str = ""
-
-
-@dataclass
-class WriteArticleData:
-    concept_name: str = ""
-    concept_id: str = ""
-    sources: str = ""
-    related_concepts: list[str] = None
-    existing_article: str = ""
-    max_tokens: int = 4000
-
-
-@dataclass
-class CaptionData:
-    source_path: str = ""
-
-
-@dataclass
-class CaptureData:
-    context: str = ""
-    tags: str = ""

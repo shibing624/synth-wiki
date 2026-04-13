@@ -211,6 +211,54 @@ def list_projects_cmd(ctx):
         click.echo(f"  - {p}")
 
 
+@main.command()
+@click.option("--project", default="", help="Project name (from config.yaml)")
+@click.argument("question", nargs=-1, required=True)
+@click.pass_context
+def query(ctx, project, question):
+    """Ask a question and get an answer from the wiki."""
+    from synth_wiki.config import load
+    from synth_wiki.server import _do_query
+
+    project_name = _resolve_project(ctx, project)
+    if not project_name:
+        return
+
+    question_text = " ".join(question)
+    cfg = load(ctx.obj["config_path"], project_name)
+    answer = _do_query(project_name, cfg, ctx.obj["config_path"], question_text)
+    click.echo(answer)
+
+
+@main.command()
+@click.option("--project", default="", help="Project name (from config.yaml)")
+@click.option("--transport", default="stdio", type=click.Choice(["stdio", "sse"]),
+              help="MCP transport (default: stdio)")
+@click.option("--port", default=0, type=int, help="Port for SSE transport (default: from config)")
+@click.pass_context
+def serve(ctx, project, transport, port):
+    """Start the MCP server for IDE/agent integration.
+
+    Exposes wiki search, query, ingest, compile, lint, and status as MCP tools.
+    Use stdio transport for Claude Code / Cursor, SSE for web clients.
+    """
+    from synth_wiki.server import run_server
+
+    project_name = _resolve_project(ctx, project)
+    if not project_name:
+        return
+
+    cfg_path = ctx.obj["config_path"]
+    if not port:
+        from synth_wiki.config import load
+        cfg = load(cfg_path, project_name)
+        port = cfg.serve.port
+
+    click.echo(f"Starting MCP server (transport={transport}, project={project_name})")
+    run_server(project_name=project_name, config_path=cfg_path,
+               transport=transport, port=port)
+
+
 def _resolve_project(ctx, local_project: str = "") -> str:
     """Resolve project name: local --project > global --project > auto-detect."""
     project_name = local_project or ctx.obj["project"]

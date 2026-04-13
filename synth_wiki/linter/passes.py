@@ -7,8 +7,10 @@ from __future__ import annotations
 import os
 import re
 import time
+
+import yaml
+
 from synth_wiki.linter.runner import Finding, LintContext
-from synth_wiki.ontology import Store as OntologyStore
 
 
 class CompletenessPass:
@@ -141,3 +143,103 @@ class StalenessPass:
                     path=os.path.join(concepts_dir, entry),
                     message=f"article is {int(age/86400)} days old"))
         return findings
+
+
+class ContradictionDetectionPass:
+    """Detect cross-source contradictions by scanning articles that share sources.
+
+    Unlike ConsistencyPass which only checks already-tagged 'contradicts' relations,
+    this pass proactively finds articles covering the same sources with conflicting
+    confidence levels or contradictory keywords.
+    """
+    def name(self) -> str: return "contradiction_detection"
+    def can_auto_fix(self) -> bool: return False
+    def fix(self, ctx, findings): pass
+
+    def run(self, ctx: LintContext) -> list[Finding]:
+        findings = []
+        # Scan all article directories
+        article_dirs = ["concepts", "entities", "comparisons"]
+        articles: dict[str, dict] = {}  # slug -> {path, sources, confidence}
+        for subdir in article_dirs:
+            dir_path = os.path.join(ctx.output_dir, subdir)
+            if not os.path.isdir(dir_path):
+                continue
+            for entry in os.listdir(dir_path):
+                if not entry.endswith(".md"):
+                    continue
+                path = os.path.join(dir_path, entry)
+                fm = _parse_frontmatter(path)
+                slug = os.path.splitext(entry)[0]
+                articles[slug] = {
+                    "path": path,
+                    "sources": fm.get("sources", []),
+                    "confidence": fm.get("confidence", ""),
+                    "contradictions": fm.get("contradictions", []),
+                }
+
+        # Build source -> articles index
+        source_to_articles: dict[str, list[str]] = {}
+        for slug, info in articles.items():
+            for src in info["sources"]:
+                source_to_articles.setdefault(src, []).append(slug)
+
+        # Check for articles sharing sources with conflicting confidence
+        checked = set()
+        for src, slugs in source_to_articles.items():
+            if len(slugs) < 2:
+                continue
+            for i, a in enumerate(slugs):
+                for b in slugs[i + 1:]:
+                    pair = tuple(sorted([a, b]))
+                    if pair in checked:
+                        continue
+                    checked.add(pair)
+                    conf_a = articles[a]["confidence"]
+                    conf_b = articles[b]["confidence"]
+                    if conf_a and conf_b and conf_a != conf_b:
+                        if _is_conflicting_confidence(conf_a, conf_b):
+                            findings.append(Finding(
+                                pass_name="contradiction_detection",
+                                severity="warning",
+                                path=articles[a]["path"],
+                                message=f"potential contradiction: '{a}' (confidence: {conf_a}) vs '{b}' (confidence: {conf_b}) share source '{src}'",
+                            ))
+
+        # Report already-marked contradictions that may need review
+        for slug, info in articles.items():
+            for contra in info["contradictions"]:
+                if contra not in articles:
+                    findings.append(Finding(
+                        pass_name="contradiction_detection",
+                        severity="info",
+                        path=info["path"],
+                        message=f"marked contradiction target '{contra}' not found in wiki",
+                    ))
+        return findings
+
+
+def _is_conflicting_confidence(a: str, b: str) -> bool:
+    """Check if two confidence levels are significantly conflicting."""
+    levels = {"high": 3, "medium": 2, "low": 1}
+    va = levels.get(a, 0)
+    vb = levels.get(b, 0)
+    return abs(va - vb) >= 2  # high vs low is a conflict
+
+
+def _parse_frontmatter(path: str) -> dict:
+    """Parse YAML frontmatter from a markdown file."""
+    try:
+        with open(path) as f:
+            content = f.read(2000)
+        if not content.startswith("---"):
+            return {}
+        end = content.find("---", 3)
+        if end < 0:
+            return {}
+        fm = yaml.safe_load(content[3:end])
+        if isinstance(fm, dict):
+            return fm
+    except (OSError, yaml.YAMLError):
+        pass
+    return {}

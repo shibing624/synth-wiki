@@ -17,11 +17,11 @@ from synth_wiki.embed import (
 
 class TestAPIEmbedder:
     def test_name(self):
-        e = APIEmbedder("openai", "text-embedding-3-small", "fake_key")
+        e = APIEmbedder("openai", "text-embedding-3-small", "fake_openai_key")
         assert e.name() == "openai/text-embedding-3-small"
 
     def test_dimensions(self):
-        e = APIEmbedder("openai", "text-embedding-3-small", "fake_key", dims=1536)
+        e = APIEmbedder("openai", "text-embedding-3-small", "fake_openai_key", dims=1536)
         assert e.dimensions() == 1536
 
     @patch("synth_wiki.embed.httpx.Client")
@@ -33,7 +33,7 @@ class TestAPIEmbedder:
         mock_client.post.return_value = mock_resp
         mock_client_cls.return_value = mock_client
 
-        e = APIEmbedder("openai", "text-embedding-3-small", "fake_key")
+        e = APIEmbedder("openai", "text-embedding-3-small", "fake_openai_key")
         result = e.embed("hello")
         assert result == [0.1, 0.2, 0.3]
         assert e.dimensions() == 3  # auto-detected
@@ -47,7 +47,7 @@ class TestAPIEmbedder:
         mock_client.post.return_value = mock_resp
         mock_client_cls.return_value = mock_client
 
-        e = APIEmbedder("gemini", "gemini-embedding-2-preview", "fake_key")
+        e = APIEmbedder("gemini", "gemini-embedding-2-preview", "fake_openai_key")
         result = e.embed("hello")
         assert result == [0.4, 0.5]
 
@@ -64,12 +64,12 @@ class TestOllamaEmbedder:
 
 class TestCascade:
     def test_tier0_explicit_override(self):
-        result = new_cascade("openai", "fake_key", override={"model": "custom-model", "api_key": "custom_key"})
+        result = new_cascade("openai", "fake_openai_key", override={"model": "custom-model", "api_key": "custom_key"})
         assert result is not None
         assert "custom-model" in result.name()
 
     def test_tier1_provider_default(self):
-        result = new_cascade("openai", "fake_key")
+        result = new_cascade("openai", "fake_openai_key")
         assert result is not None
         assert "text-embedding-3-small" in result.name()
 
@@ -85,7 +85,7 @@ class TestCascade:
         assert "ollama" in result.name()
 
     def test_auto_detect_dimensions(self):
-        e = APIEmbedder("openai", "unknown-model", "fake_key", dims=0)
+        e = APIEmbedder("openai", "unknown-model", "fake_openai_key", dims=0)
         assert e.dimensions() == 0  # not yet detected
 
 

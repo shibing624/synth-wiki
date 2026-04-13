@@ -31,7 +31,7 @@ def test_load_valid_config(tmp_project_dir):
     cfg = load(cfg_path, "test-wiki")
     assert cfg.project == "test-wiki"
     assert cfg.api.provider == "gemini"
-    assert cfg.api.api_key == "fake_key"
+    assert cfg.api.api_key == "fake_openai_key"
     assert len(cfg.sources) == 1
     assert cfg.compiler.auto_commit is False
     assert cfg.compiler.auto_lint is False

@@ -7,7 +7,8 @@ from __future__ import annotations
 import json
 import os
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+
+from synth_wiki.paths import utc_now_iso
 
 
 @dataclass
@@ -116,7 +117,7 @@ def load(path: str) -> Manifest:
 
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return utc_now_iso()
 
 def _source_to_dict(s: Source) -> dict:
     return {"hash": s.hash, "type": s.type, "size_bytes": s.size_bytes,

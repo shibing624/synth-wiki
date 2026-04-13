@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS vec_entries (
 -- Ontology: entities
 CREATE TABLE IF NOT EXISTS entities (
     id TEXT PRIMARY KEY,
-    type TEXT NOT NULL CHECK(type IN ('concept','technique','source','claim','artifact')),
+    type TEXT NOT NULL CHECK(type IN ('concept','technique','source','claim','artifact','entity','comparison')),
     name TEXT NOT NULL,
     definition TEXT,
     article_path TEXT,
@@ -110,7 +110,6 @@ class DB:
     def _migrate(self) -> None:
         cursor = self._write_conn.cursor()
         cursor.execute("CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)")
-        row = cursor.fetchone()
         cursor.execute("SELECT COALESCE(MAX(version), 0) FROM schema_version")
         version = cursor.fetchone()[0]
 

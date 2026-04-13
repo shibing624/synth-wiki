@@ -27,7 +27,7 @@ def project(tmp_path):
     # Fix config for testing
     from synth_wiki.config import load
     cfg = load(paths.config_path(), "integration-test")
-    cfg.api.api_key = "fake_key"
+    cfg.api.api_key = "fake_openai_key"
     cfg.compiler.auto_commit = False
     cfg.save(paths.config_path())
     # Add source documents

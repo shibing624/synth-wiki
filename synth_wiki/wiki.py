@@ -16,6 +16,8 @@ from typing import Optional
 
 import yaml
 
+import httpx
+
 from synth_wiki import git
 from synth_wiki import paths
 from synth_wiki.config import Config, Source, VaultConfig, load, load_global
@@ -219,7 +221,6 @@ def ingest_path(project_name: str, src_path: str, config_path: str = "") -> Inge
 
 def ingest_url(project_name: str, url: str, config_path: str = "") -> IngestResult:
     """Download URL and save to source folder."""
-    import httpx
     cfg_path = config_path or paths.config_path()
     cfg = load(cfg_path, project_name)
 

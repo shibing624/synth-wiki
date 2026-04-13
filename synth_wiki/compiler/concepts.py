@@ -5,7 +5,7 @@
 """
 from __future__ import annotations
 import json
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 
 from synth_wiki.compiler.progress import phase_bar
@@ -26,7 +26,8 @@ class ExtractedConcept:
 def extract_concepts(summaries: list[SummaryResult], existing_concepts: dict,
                      client: Client, model: str,
                      language: str = "zh-CN",
-                     max_parallel: int = 4) -> list[ExtractedConcept]:
+                     max_parallel: int = 4,
+                     page_threshold: int = 1) -> list[ExtractedConcept]:
     valid = [s for s in summaries if s.error is None and s.summary]
     if not valid:
         return []
@@ -41,7 +42,7 @@ def extract_concepts(summaries: list[SummaryResult], existing_concepts: dict,
         for idx, batch in enumerate(batches):
             f = pool.submit(_extract_one_batch, batch, existing_list, client, model, language)
             futures[f] = idx
-        for f in futures:
+        for f in as_completed(futures):
             results[futures[f]] = f.result()
             bar.update(1)
     bar.close()
@@ -52,6 +53,8 @@ def extract_concepts(summaries: list[SummaryResult], existing_concepts: dict,
             all_concepts.extend(batch_concepts)
     all_concepts = filter_noisy_concepts(all_concepts)
     all_concepts = deduplicate_concepts(all_concepts)
+    if page_threshold > 1:
+        all_concepts = filter_by_source_count(all_concepts, page_threshold)
     return all_concepts
 
 
@@ -69,7 +72,8 @@ Existing concepts (avoid duplicates): {', '.join(existing_list)}
 Summaries:
 {chr(10).join(summary_texts)}
 
-For each concept: name (lowercase-hyphenated), aliases (in {language}), sources (file paths), type (concept/technique/claim).
+For each concept: name (lowercase-hyphenated), aliases (in {language}), sources (file paths), type (concept/technique/claim/entity/comparison).
+Use type "entity" for people, organizations, products, or models. Use type "comparison" for side-by-side analyses.
 Output ONLY a JSON array."""
 
     resp = client.chat_completion([
@@ -115,6 +119,15 @@ def filter_noisy_concepts(concepts: list[ExtractedConcept]) -> list[ExtractedCon
             continue
         result.append(c)
     return result
+
+
+def filter_by_source_count(concepts: list[ExtractedConcept], min_sources: int) -> list[ExtractedConcept]:
+    """Filter out concepts that appear in fewer than min_sources sources.
+
+    Karpathy's LLM Wiki rule: only create a page when a concept appears in 2+
+    sources OR is central to one source. Here we use source count as the proxy.
+    """
+    return [c for c in concepts if len(c.sources) >= min_sources]
 
 
 def deduplicate_concepts(concepts: list[ExtractedConcept]) -> list[ExtractedConcept]:

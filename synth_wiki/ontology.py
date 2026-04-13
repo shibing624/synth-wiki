@@ -5,10 +5,10 @@
 """
 from __future__ import annotations
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from enum import Enum
 from typing import Optional
 
+from synth_wiki.paths import utc_now_iso
 from synth_wiki.storage import DB
 
 # Entity types
@@ -16,6 +16,8 @@ TYPE_CONCEPT = "concept"
 TYPE_TECHNIQUE = "technique"
 TYPE_SOURCE = "source"
 TYPE_CLAIM = "claim"
+TYPE_ENTITY = "entity"
+TYPE_COMPARISON = "comparison"
 TYPE_ARTIFACT = "artifact"
 
 # Relation types
@@ -208,4 +210,4 @@ class Store:
 
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return utc_now_iso()

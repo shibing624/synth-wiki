@@ -218,12 +218,13 @@ class GeminiProvider:
         if system_text:
             payload["systemInstruction"] = {"parts": [{"text": system_text}]}
 
-        url = f"{self._base_url}/models/{opts.model}:generateContent?key={self._api_key}"
+        url = f"{self._base_url}/models/{opts.model}:generateContent"
 
         return httpx.Request(
             "POST",
             url,
             headers={"Content-Type": "application/json"},
+            params={"key": self._api_key},
             content=json.dumps(payload).encode(),
         )
 

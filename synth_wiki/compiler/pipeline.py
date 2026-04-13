@@ -8,7 +8,6 @@ import json
 import os
 import sys
 from dataclasses import dataclass, field, asdict
-from datetime import datetime, timezone
 from typing import Optional
 
 from tqdm import tqdm
@@ -21,6 +20,7 @@ from synth_wiki.compiler.summarize import summarize, SummaryResult
 from synth_wiki.compiler.concepts import extract_concepts, ExtractedConcept
 from synth_wiki.compiler.write import write_articles, ArticleResult
 from synth_wiki.compiler.images import extract_images
+from synth_wiki.compiler.index import generate_schema, generate_index
 from synth_wiki.embed import new_from_config
 from synth_wiki import git
 from synth_wiki.llm.client import Client
@@ -28,6 +28,7 @@ from synth_wiki.llm.cost import CostTracker, CostReport, format_report
 from synth_wiki.manifest import load as load_manifest
 from synth_wiki.memory import Store as MemoryStore, Entry
 from synth_wiki.ontology import Store as OntologyStore
+from synth_wiki.paths import utc_now_iso
 from synth_wiki.prompts import load_from_dir
 from synth_wiki.storage import DB
 from synth_wiki.vectors import Store as VectorStore
@@ -83,7 +84,7 @@ def compile(project_name: str, opts: CompileOpts = None) -> CompileResult:
     source_dirs = cfg.resolve_sources()
 
     # Ensure output directories exist
-    for sub in ["summaries", "concepts", "connections", "outputs", "images", "archive"]:
+    for sub in ["summaries", "concepts", "entities", "comparisons", "connections", "outputs", "images", "archive"]:
         os.makedirs(os.path.join(output_dir, sub), exist_ok=True)
 
     prompts_dir = os.path.join(output_dir, "prompts")
@@ -127,7 +128,7 @@ def compile(project_name: str, opts: CompileOpts = None) -> CompileResult:
 
     if state is None:
         state = CompileState(
-            compile_id=datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S"),
+            compile_id=utc_now_iso().replace(":", "").replace("-", "")[:15],
             started_at=_now(),
             pass_num=1,
         )
@@ -178,7 +179,7 @@ def compile(project_name: str, opts: CompileOpts = None) -> CompileResult:
         if successful:
             extract_model = cfg.models.extract or model
             client.set_pass("extract")
-            concepts = extract_concepts(successful, mf.concepts, client, extract_model, cfg.language, cfg.compiler.max_parallel)
+            concepts = extract_concepts(successful, mf.concepts, client, extract_model, cfg.language, cfg.compiler.max_parallel, cfg.compiler.page_threshold)
             result.concepts_extracted = len(concepts)
 
             for c in concepts:
@@ -207,6 +208,10 @@ def compile(project_name: str, opts: CompileOpts = None) -> CompileResult:
         mf.save(mf_path)
 
         _write_changelog(output_dir, result)
+
+        generate_schema(output_dir, description=cfg.description,
+                        page_threshold=cfg.compiler.page_threshold)
+        generate_index(output_dir, project_name=cfg.project)
 
         if result.errors == 0:
             try:
@@ -280,4 +285,4 @@ def _write_changelog(output_dir: str, result: CompileResult) -> None:
 
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return utc_now_iso()

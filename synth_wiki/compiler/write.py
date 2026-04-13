@@ -7,18 +7,28 @@ from __future__ import annotations
 import json
 import os
 import re
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Optional
+
+import httpx
 
 from synth_wiki.compiler.concepts import ExtractedConcept
 from synth_wiki.compiler.progress import phase_bar
 from synth_wiki.llm.client import Client, Message, CallOpts
 from synth_wiki.memory import Store as MemoryStore, Entry
 from synth_wiki.ontology import Store as OntologyStore, Entity, Relation
-from synth_wiki.ontology import TYPE_CONCEPT, TYPE_TECHNIQUE, TYPE_CLAIM, TYPE_SOURCE, REL_CITES
+from synth_wiki.ontology import TYPE_CONCEPT, TYPE_TECHNIQUE, TYPE_CLAIM, TYPE_ENTITY, TYPE_COMPARISON, TYPE_SOURCE, REL_CITES
 from synth_wiki.ontology import REL_IMPLEMENTS, REL_EXTENDS, REL_OPTIMIZES, REL_CONTRADICTS, REL_PREREQUISITE_OF, REL_TRADES_OFF
+
+
+# Map concept type -> output subdirectory
+_TYPE_TO_SUBDIR = {
+    "entity": "entities",
+    "comparison": "comparisons",
+}
+_DEFAULT_SUBDIR = "concepts"
 from synth_wiki.vectors import Store as VectorStore
 
 
@@ -42,7 +52,7 @@ def write_articles(output_dir: str, concepts: list[ExtractedConcept],
             f = pool.submit(write_one_article, output_dir, c, client, model,
                             max_tokens, mem_store, vec_store, ont_store, embedder, language)
             futures[f] = i
-        for f in futures:
+        for f in as_completed(futures):
             results[futures[f]] = f.result()
             bar.update(1)
     bar.close()
@@ -56,7 +66,8 @@ def write_one_article(output_dir: str, concept: ExtractedConcept,
                       language: str = "zh-CN") -> ArticleResult:
     result = ArticleResult(concept_name=concept.name)
     try:
-        abs_path = os.path.join(output_dir, "concepts", concept.name + ".md")
+        subdir = _TYPE_TO_SUBDIR.get(concept.type, _DEFAULT_SUBDIR)
+        abs_path = os.path.join(output_dir, subdir, concept.name + ".md")
         existing = ""
         if os.path.exists(abs_path):
             with open(abs_path) as f:
@@ -73,7 +84,7 @@ def write_one_article(output_dir: str, concept: ExtractedConcept,
             content = _build_frontmatter(concept) + "\n\n" + content
         content = _normalize_confidence(content)
 
-        os.makedirs(os.path.join(output_dir, "concepts"), exist_ok=True)
+        os.makedirs(os.path.join(output_dir, subdir), exist_ok=True)
         with open(abs_path, "w") as f:
             f.write(content)
         result.article_path = abs_path
@@ -83,6 +94,10 @@ def write_one_article(output_dir: str, concept: ExtractedConcept,
             entity_type = TYPE_TECHNIQUE
         elif concept.type == "claim":
             entity_type = TYPE_CLAIM
+        elif concept.type == "entity":
+            entity_type = TYPE_ENTITY
+        elif concept.type == "comparison":
+            entity_type = TYPE_COMPARISON
         ont_store.add_entity(Entity(id=concept.name, type=entity_type, name=_format_name(concept.name), article_path=abs_path))
 
         for src in concept.sources:
@@ -97,7 +112,7 @@ def write_one_article(output_dir: str, concept: ExtractedConcept,
             vec = embedder.embed(content)
             vec_store.upsert(f"concept:{concept.name}", vec)
 
-    except Exception as e:
+    except (httpx.HTTPError, RuntimeError, IOError, json.JSONDecodeError) as e:
         result.error = e
     return result
 
@@ -105,6 +120,7 @@ def write_one_article(output_dir: str, concept: ExtractedConcept,
 def _build_article_prompt(concept: ExtractedConcept, existing: str, language: str = "zh-CN") -> str:
     parts = [f"Write a comprehensive wiki article about: {_format_name(concept.name)}"]
     parts.append(f"Concept ID: {concept.name}")
+    parts.append(f"Article type: {concept.type}")
     if concept.aliases:
         parts.append(f"Aliases: {', '.join(concept.aliases)}")
     parts.append(f"Sources: {', '.join(concept.sources)}")
@@ -112,7 +128,12 @@ def _build_article_prompt(concept: ExtractedConcept, existing: str, language: st
         parts.append(f"\nExisting article (update/expand):\n{existing}")
     parts.append(f"\nIMPORTANT: Write the entire article in {language}.")
     parts.append("Use YAML frontmatter with concept, aliases, sources, confidence (high/medium/low).")
-    parts.append("Include sections: Definition, How it works, Variants, Trade-offs, See also with [[wikilinks]].")
+    if concept.type == "entity":
+        parts.append("Include sections: Overview, Key Facts, Relationships, Timeline, See also with [[wikilinks]].")
+    elif concept.type == "comparison":
+        parts.append("Include sections: Overview, Comparison Table (markdown table), Analysis, Verdict, See also with [[wikilinks]].")
+    else:
+        parts.append("Include sections: Definition, How it works, Variants, Trade-offs, See also with [[wikilinks]].")
     return "\n".join(parts)
 
 
@@ -151,6 +172,8 @@ def _map_confidence(value: str) -> str:
 
 
 def _extract_relations(concept_id: str, content: str, ont_store: OntologyStore) -> None:
+    # TODO: Replace keyword matching with LLM-based relation extraction in the article
+    # writing prompt for higher accuracy. Current approach produces false positives.
     link_re = re.compile(r'\[\[([^\]]+)\]\]')
     links = {m.group(1) for m in link_re.finditer(content) if m.group(1) != concept_id}
     content_lower = content.lower()

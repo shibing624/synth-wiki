@@ -14,6 +14,7 @@ import time
 from synth_wiki import log
 from synth_wiki import paths
 from synth_wiki.config import load as load_config
+from synth_wiki.paths import is_ignored
 
 
 def watch(project_name: str, debounce_seconds: int = 2, config_path: str = "") -> None:
@@ -172,17 +173,8 @@ def _scan_snapshot(source_paths: list[str], ignore: list[str]) -> dict[str, str]
         for root, _dirs, files in os.walk(src_dir):
             for fname in files:
                 abs_path = os.path.join(root, fname)
-                if _is_ignored(abs_path, ignore):
+                if is_ignored(abs_path, ignore):
                     continue
                 info = os.stat(abs_path)
                 snapshot[abs_path] = f"{info.st_size}-{info.st_mtime_ns}"
     return snapshot
-
-
-def _is_ignored(path: str, ignore: list[str]) -> bool:
-    """Check if path matches any ignore pattern."""
-    basename = os.path.basename(path)
-    for pattern in ignore:
-        if basename == pattern or pattern in path:
-            return True
-    return False

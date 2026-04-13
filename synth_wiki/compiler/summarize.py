@@ -4,15 +4,19 @@
 @description: Pass 1: Extract and summarize sources with parallel LLM calls.
 """
 from __future__ import annotations
+import json
 import os
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from typing import Optional
+
+import httpx
 
 from synth_wiki.compiler.diff import SourceInfo
 from synth_wiki.compiler.progress import phase_bar
 from synth_wiki.extract import extract, is_image_source, chunk_if_needed
-from synth_wiki.llm.client import Client, Message, CallOpts, Response
+from synth_wiki.llm.client import Client, Message, CallOpts
 
 
 @dataclass
@@ -36,7 +40,7 @@ def summarize(output_dir: str, sources: list[SourceInfo],
         for i, src in enumerate(sources):
             f = pool.submit(summarize_one, output_dir, src, client, model, max_tokens, language, max_parallel)
             futures[f] = i
-        for f in futures:
+        for f in as_completed(futures):
             results[futures[f]] = f.result()
             bar.update(1)
     bar.close()
@@ -91,14 +95,13 @@ def summarize_one(output_dir: str, info: SourceInfo,
             result.summary = resp.content
 
         result.summary_path = _write_summary_file(output_dir, info, content.type, result.summary, content.chunk_count)
-    except Exception as e:
+    except (httpx.HTTPError, RuntimeError, IOError, json.JSONDecodeError) as e:
         result.error = e
     return result
 
 
 def _write_summary_file(output_dir: str, info: SourceInfo,
                         source_type: str, summary: str, chunk_count: int) -> str:
-    from datetime import datetime, timezone
     summary_dir = os.path.join(output_dir, "summaries")
     os.makedirs(summary_dir, exist_ok=True)
     base = os.path.splitext(os.path.basename(info.path))[0]
