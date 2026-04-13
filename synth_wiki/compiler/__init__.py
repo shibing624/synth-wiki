@@ -3,6 +3,8 @@
 @author:XuMing(xuming624@qq.com)
 @description: Compiler pipeline for synth-wiki.
 """
+__version__ = '0.1.3'
+
 from synth_wiki.compiler.pipeline import compile, CompileOpts, CompileResult
 from synth_wiki.compiler.diff import diff, DiffResult, SourceInfo
 from synth_wiki.compiler.summarize import summarize, SummaryResult
