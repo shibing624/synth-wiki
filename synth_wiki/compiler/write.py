@@ -128,6 +128,7 @@ def _build_article_prompt(concept: ExtractedConcept, existing: str, language: st
         parts.append(f"\nExisting article (update/expand):\n{existing}")
     parts.append(f"\nIMPORTANT: Write the entire article in {language}.")
     parts.append("Use YAML frontmatter with concept, aliases, sources, confidence (high/medium/low).")
+    parts.append("IMPORTANT: All [[wikilinks]] MUST use lowercase-hyphenated slug format, e.g. [[machine-learning]], [[natural-language-processing]], [[deep-learning]]. NEVER use display names like [[机器学习]] or [[Machine Learning]].")
     if concept.type == "entity":
         parts.append("Include sections: Overview, Key Facts, Relationships, Timeline, See also with [[wikilinks]].")
     elif concept.type == "comparison":
@@ -186,6 +187,9 @@ def _extract_relations(concept_id: str, content: str, ont_store: OntologyStore) 
         (["trade-off", "tradeoff", "trades off"], REL_TRADES_OFF),
     ]
     for target in links:
+        # Skip if target entity does not exist yet (parallel writes or dangling wikilinks)
+        if ont_store.get_entity(target) is None:
+            continue
         target_lower = target.lower()
         for keywords, rel_type in patterns:
             for kw in keywords:

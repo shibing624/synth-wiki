@@ -165,8 +165,8 @@ Just drop files into your source folder — `synth-wiki` detects the format auto
 │   └── self-attention.md
 ├── entities/                     # Entity pages (people, orgs, products, models)
 ├── comparisons/                  # Side-by-side analysis pages
-├── connections/
-├── outputs/
+├── connections/                  # Cross-concept relation pages (reserved)
+├── outputs/                     # Exported artifacts (JSON, graph data, etc.)
 ├── images/                       # Extracted images
 ├── archive/
 ├── prompts/                      # Custom prompts (optional)

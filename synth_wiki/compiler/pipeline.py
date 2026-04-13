@@ -21,6 +21,7 @@ from synth_wiki.compiler.concepts import extract_concepts, ExtractedConcept
 from synth_wiki.compiler.write import write_articles, ArticleResult
 from synth_wiki.compiler.images import extract_images
 from synth_wiki.compiler.index import generate_schema, generate_index
+from synth_wiki.compiler.stubs import generate_stubs
 from synth_wiki.embed import new_from_config
 from synth_wiki import git
 from synth_wiki.llm.client import Client
@@ -212,6 +213,10 @@ def compile(project_name: str, opts: CompileOpts = None) -> CompileResult:
         generate_schema(output_dir, description=cfg.description,
                         page_threshold=cfg.compiler.page_threshold)
         generate_index(output_dir, project_name=cfg.project)
+
+        stubs = generate_stubs(output_dir)
+        if stubs:
+            print(f"Stubs: {len(stubs)} stub pages created for dangling wikilinks", file=sys.stderr)
 
         if result.errors == 0:
             try:

@@ -165,8 +165,8 @@ synth-wiki search "attention mechanism"
 │   └── self-attention.md
 ├── entities/                     # 实体页面（人物、组织、产品、模型）
 ├── comparisons/                  # 对比分析页面
-├── connections/
-├── outputs/
+├── connections/                  # 概念间关联页面（预留）
+├── outputs/                      # 导出产物（JSON、图谱数据等）
 ├── images/                       # 提取的图片
 ├── archive/
 ├── prompts/                      # 自定义 prompt（可选）
